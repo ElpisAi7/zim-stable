@@ -88,6 +88,7 @@ export async function executeYellowCardSwap(
     return {
       transactionId: '',
       status: 'failed',
+      estimatedTime: 0,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
