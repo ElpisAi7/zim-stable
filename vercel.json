@@ -1,5 +1,6 @@
 {
   "installCommand": "cd ../.. && npm install -g pnpm@8 && pnpm install --no-frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm turbo run build --filter=web"
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=web",
+  "outputDirectory": "apps/web/.next"
 }
 
