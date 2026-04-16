@@ -1,2 +1,5 @@
-{}
+{
+  "installCommand": "cd ../.. && npm install -g pnpm@8 && pnpm install",
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=web"
+}
 
