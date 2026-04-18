@@ -60,13 +60,10 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://zim-stable-web.vercel.app';
     const resultUrl = body.notifyUrl || body.resultUrl || `${appUrl}/api/paynow/callback`;
     const returnUrl = body.returnUrl || `${appUrl}/success`;
-    const email = body.email || 'customer@zimstable.app';
+    const email = body.email || process.env.PAYNOW_MERCHANT_EMAIL || '';
     const amountStr = parseFloat(String(body.amount)).toFixed(2);
 
     // Paynow items format: "item name:amount," (trailing comma, matches PHP SDK)
-    const email = body.email || process.env.PAYNOW_MERCHANT_EMAIL || '';
-
-    // Fields MUST be in this exact order — mirrors Paynow PHP SDK createLink()
     // items is added to the fields array BEFORE hash is computed in the PHP SDK
     const hashFields: Record<string, string> = {
       resulturl: resultUrl,
