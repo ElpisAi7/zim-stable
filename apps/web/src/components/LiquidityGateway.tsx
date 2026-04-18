@@ -222,6 +222,17 @@ export default function LiquidityGateway() {
           </div>
         )}
 
+        {process.env.NEXT_PUBLIC_APP_ENVIRONMENT !== 'production' && (
+          <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+            <p className="text-xs font-bold text-purple-800 dark:text-purple-200 uppercase mb-2">🧪 Test mode — use these phone numbers</p>
+            <ul className="text-xs text-purple-700 dark:text-purple-300 space-y-1">
+              <li><span className="font-mono font-semibold">0771111111</span> — Payment succeeds</li>
+              <li><span className="font-mono font-semibold">0772222222</span> — Delayed success</li>
+              <li><span className="font-mono font-semibold">0773333333</span> — Payment fails</li>
+            </ul>
+          </div>
+        )}
+
         <form onSubmit={handleInitiatePayment} className="space-y-5">
 
           {/* Payment method */}
