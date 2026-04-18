@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   if (steps[0] === '1') {
     // Step 1: ask for amount
     if (level === 1) {
-      const wallet = getWallet(phone);
+      const wallet = await getWallet(phone);
       if (!wallet) {
         return end(
           `No wallet registered for ${phone}.\n\nVisit zim-stable-web.vercel.app and connect your wallet to register it, then try again.`,
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         return end(`Invalid amount. Please dial again.`);
       }
       const cUSD = zwlToUsd(amount);
-      const wallet = getWallet(phone)!;
+      const wallet = (await getWallet(phone))!;
       const shortWallet = `${wallet.slice(0, 8)}...${wallet.slice(-4)}`;
       return con(
         `Summary:\n${amount} ZWL → ${cUSD} cUSD\nTo wallet: ${shortWallet}\n\n1. Confirm\n2. Cancel`,
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
   // ── My wallet flow ────────────────────────────────────────────────────────
   if (steps[0] === '2') {
-    const wallet = getWallet(phone);
+    const wallet = await getWallet(phone);
     if (wallet) {
       return end(`Your registered wallet:\n${wallet}`);
     } else {

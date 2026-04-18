@@ -27,5 +27,8 @@ declare namespace NodeJS {
     NEXT_PUBLIC_APP_ENVIRONMENT?: string;    // Africa's Talking USSD
     AT_API_KEY: string;
     AT_USERNAME: string;
-    AT_USSD_CODE: string;  }
+    AT_USSD_CODE: string;
+    // Upstash Redis (wallet store)
+    UPSTASH_REDIS_REST_URL: string;
+    UPSTASH_REDIS_REST_TOKEN: string;  }
 }

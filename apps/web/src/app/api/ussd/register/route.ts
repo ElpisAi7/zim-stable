@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    setWallet(phone, wallet);
+    await setWallet(phone, wallet);
 
     return NextResponse.json({
       success: true,
