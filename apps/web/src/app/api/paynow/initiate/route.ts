@@ -63,10 +63,11 @@ export async function POST(request: NextRequest) {
     const email = body.email || 'customer@zimstable.app';
     const amountStr = parseFloat(String(body.amount)).toFixed(2);
 
-    // Paynow items format: "item name:amount"
-    const items = `${body.description}:${amountStr}`;
+    // Paynow items format: "item name:amount," (trailing comma, matches PHP SDK)
+    const items = `${body.description}:${amountStr},`;
 
-    // Fields MUST be in this exact order to match Paynow's hash computation (mirrors PHP SDK)
+    // Fields MUST be in this exact order — mirrors Paynow PHP SDK createLink()
+    // items is added to the fields array BEFORE hash is computed in the PHP SDK
     const hashFields: Record<string, string> = {
       resulturl: resultUrl,
       returnurl: returnUrl,
@@ -76,14 +77,14 @@ export async function POST(request: NextRequest) {
       additionalinfo: body.description,
       authemail: email,
       status: 'Message',
+      items,
     };
 
     const signature = buildSignature(hashFields, integrationKey);
 
-    // Build URL-encoded body — items added after hash (not part of hash)
+    // Send all fields + hash
     const formData = new URLSearchParams({
       ...hashFields,
-      items,
       hash: signature,
     });
 
