@@ -66,23 +66,23 @@ export async function POST(request: NextRequest) {
     // Paynow items format: "item name:amount"
     const items = `${body.description}:${amountStr}`;
 
-    // Fields must be in this exact order for signature
-    const fields: Record<string, string> = {
-      id: integrationId,
+    // Fields MUST be in this exact order to match Paynow's hash computation (mirrors PHP SDK)
+    const hashFields: Record<string, string> = {
+      resulturl: resultUrl,
+      returnurl: returnUrl,
       reference: body.reference,
       amount: amountStr,
+      id: integrationId,
       additionalinfo: body.description,
-      returnurl: returnUrl,
-      resulturl: resultUrl,
+      authemail: email,
       status: 'Message',
     };
 
-    const signature = buildSignature(fields, integrationKey);
+    const signature = buildSignature(hashFields, integrationKey);
 
-    // Build URL-encoded body
+    // Build URL-encoded body — items added after hash (not part of hash)
     const formData = new URLSearchParams({
-      ...fields,
-      authemail: email,
+      ...hashFields,
       items,
       hash: signature,
     });
