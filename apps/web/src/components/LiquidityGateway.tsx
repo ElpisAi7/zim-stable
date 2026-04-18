@@ -29,6 +29,7 @@ export default function LiquidityGateway() {
   const [pollUrl, setPollUrl] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const [registered, setRegistered] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const [exchangeRate] = useState<ExchangeRate>({
@@ -40,6 +41,16 @@ export default function LiquidityGateway() {
 
   // Stop polling on unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // Register phone → wallet for USSD service whenever both are known
+  useEffect(() => {
+    if (!userAccount || !phone.match(/^\+263\d{9}$/) || registered) return;
+    fetch('/api/ussd/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, wallet: userAccount }),
+    }).then((r) => { if (r.ok) setRegistered(true); }).catch(() => {});
+  }, [userAccount, phone, registered]);
 
   const startPolling = (url: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -224,6 +235,14 @@ export default function LiquidityGateway() {
           </div>
         )}
 
+        {/* USSD dial-in option */}
+        <div className="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+          <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 uppercase mb-1">📞 No internet? Use USSD</p>
+          <p className="text-sm font-mono font-bold text-indigo-900 dark:text-indigo-100">*384*28561#</p>
+          <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">Works on any phone — enter your number below first to link this wallet</p>
+          {registered && <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-semibold">✓ USSD registered for {phone}</p>}
+        </div>
+
         {process.env.NEXT_PUBLIC_APP_ENVIRONMENT !== 'production' && (
           <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
             <p className="text-xs font-bold text-purple-800 dark:text-purple-200 uppercase mb-2">🧪 Test mode — use these phone numbers</p>
@@ -347,6 +366,9 @@ export default function LiquidityGateway() {
 
           <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
             No Paynow account needed. You'll get a {METHOD_LABELS[method]} prompt on your phone.
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+            No smartphone? Dial <span className="font-mono font-semibold">*384*28561#</span> from any phone.
           </p>
         </form>
       </div>
