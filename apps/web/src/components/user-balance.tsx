@@ -3,7 +3,7 @@
 import { useAccount, useBalance } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const cUSD_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+const cUSD_ADDRESS = "0x765DE816845861e75A05fA979517178a0586e3f3";
 const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
 
@@ -30,11 +30,12 @@ export function UserBalance() {
     return null;
   }
 
+  const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
+
   return (
     <Card className="w-full max-w-md mx-auto mb-8">
       <CardHeader>
-        <CardTitle className="text-lg font-medium">Connected Wallet</CardTitle>
-        <p className="text-sm text-muted-foreground truncate pt-1">{address}</p>
+        <CardTitle className="text-lg font-medium">Welcome, {shortAddress}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 pt-2 border-t">

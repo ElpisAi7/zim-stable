@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { Loader2 } from 'lucide-react';
 import { getConfig } from '@/lib/config';
+import { UserBalance } from './user-balance';
 
 /**
  * LiquidityGateway Component
@@ -93,6 +94,9 @@ export default function LiquidityGateway() {
     <div className="flex justify-center items-center min-h-screen p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-8 w-full max-w-md border border-slate-200 dark:border-slate-700">
         
+        {/* Balance Card */}
+        <UserBalance />
+
         {/* Header */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
@@ -192,8 +196,8 @@ export default function LiquidityGateway() {
               <p className="text-xs text-slate-600 dark:text-slate-400 uppercase font-semibold mb-1">
                 Payment destination
               </p>
-              <p className="text-sm font-mono text-slate-900 dark:text-slate-100 break-all">
-                {userAccount}
+              <p className="text-sm font-mono text-slate-900 dark:text-slate-100">
+                {userAccount.slice(0, 6)}...{userAccount.slice(-4)}
               </p>
             </div>
           )}
