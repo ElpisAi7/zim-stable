@@ -28,6 +28,7 @@ export default function LiquidityGateway() {
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [pollUrl, setPollUrl] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   const [exchangeRate] = useState<ExchangeRate>({
@@ -56,6 +57,7 @@ export default function LiquidityGateway() {
           clearInterval(pollRef.current!);
           setPaymentState('paid');
           setStatusMessage('Payment received! Your cUSD will arrive shortly.');
+          setRefetchTrigger((n) => n + 1);
         } else if (data.status === 'failed' || data.status === 'Failed') {
           clearInterval(pollRef.current!);
           setPaymentState('failed');
@@ -209,7 +211,7 @@ export default function LiquidityGateway() {
     <div className="flex justify-center items-center min-h-screen p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
       <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-8 w-full max-w-md border border-slate-200 dark:border-slate-700">
 
-        <UserBalance />
+<UserBalance refetchTrigger={refetchTrigger} />
 
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">💱 Liquidity Bridge</h1>
