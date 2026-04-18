@@ -79,10 +79,12 @@ export default function LiquidityGateway() {
         setPaymentInitiated(true);
         // Redirect to Paynow/EcoCash
         window.location.href = data.paymentUrl;
+      } else {
+        throw new Error(data.error || 'No payment URL returned');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Payment initiation failed:', error);
-      alert('Failed to initiate payment. Please try again.');
+      alert(`Payment failed: ${error?.message || 'Please try again.'}`);
     } finally {
       setIsLoading(false);
     }

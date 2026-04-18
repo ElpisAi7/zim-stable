@@ -1,103 +1,130 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 import crypto from 'crypto';
 
 /**
  * Paynow Initiate Payment API Route
  * POST /api/paynow/initiate
- * Initiates a payment through Paynow (EcoCash/OneMoney)
+ *
+ * Paynow API docs: https://developers.paynow.co.zw/docs/initiate_transaction.html
+ * The API expects URL-encoded form data (application/x-www-form-urlencoded)
+ * and a SHA512 HMAC signature built from concatenated field values.
  */
 
 interface PaynowInitiateRequest {
   email?: string;
   phone?: string;
   amount: number;
-  currency?: 'ZWL' | 'USD';
+  currency?: string;
   reference: string;
   description: string;
   returnUrl: string;
   notifyUrl?: string;
-  resultUrl?: string; // alias for notifyUrl
+  resultUrl?: string;
+}
+
+/**
+ * Build Paynow signature.
+ * Concatenate all field values (in the exact order they appear in the payload)
+ * then append the integration key, and SHA512 hash the result (uppercase hex).
+ */
+function buildSignature(fields: Record<string, string>, integrationKey: string): string {
+  const values = Object.values(fields).join('');
+  return crypto
+    .createHash('sha512')
+    .update(values + integrationKey)
+    .digest('hex')
+    .toUpperCase();
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: PaynowInitiateRequest = await request.json();
 
-    // Validate required fields
     if (!body.amount || !body.reference) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: amount and reference are required' },
+        { success: false, error: 'Missing required fields: amount and reference' },
         { status: 400 }
       );
     }
 
-    // Normalise optional fields with defaults
-    const notifyUrl = body.notifyUrl || body.resultUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/paynow/callback`;
-    const email = body.email || 'noreply@zimstable.app';
-    const phone = body.phone || '';
+    const integrationId = process.env.PAYNOW_INTEGRATION_ID;
+    const integrationKey = process.env.PAYNOW_INTEGRATION_KEY;
 
-    const paynowIntegrationKey = process.env.PAYNOW_INTEGRATION_KEY;
-    const paynowApiUrl = process.env.PAYNOW_API_URL || 'https://www.paynow.co.zw/api/initiate';
-
-    if (!paynowIntegrationKey) {
+    if (!integrationId || !integrationKey) {
       return NextResponse.json(
-        { success: false, error: 'Paynow integration key not configured' },
+        { success: false, error: 'Paynow credentials not configured' },
         { status: 500 }
       );
     }
 
-    // Build Paynow request
-    const paynowPayload = {
-      resulturl: notifyUrl,
-      returnurl: body.returnUrl,
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://zim-stable-web.vercel.app';
+    const resultUrl = body.notifyUrl || body.resultUrl || `${appUrl}/api/paynow/callback`;
+    const returnUrl = body.returnUrl || `${appUrl}/success`;
+    const email = body.email || 'customer@zimstable.app';
+    const amountStr = parseFloat(String(body.amount)).toFixed(2);
+
+    // Paynow items format: "item name:amount"
+    const items = `${body.description}:${amountStr}`;
+
+    // Fields must be in this exact order for signature
+    const fields: Record<string, string> = {
+      id: integrationId,
       reference: body.reference,
-      email,
-      items: {
-        name: body.description,
-        amount: body.amount,
-      },
-      phonenumber: phone,
+      amount: amountStr,
+      additionalinfo: body.description,
+      returnurl: returnUrl,
+      resulturl: resultUrl,
+      status: 'Message',
     };
 
-    // Sign the request (Paynow uses HMAC-SHA512)
-    const signature = getPaynowSignature(paynowPayload, paynowIntegrationKey);
+    const signature = buildSignature(fields, integrationKey);
 
-    // Make request to Paynow
-    const response = await axios.post(paynowApiUrl, {
-      ...paynowPayload,
-      signature,
+    // Build URL-encoded body
+    const formData = new URLSearchParams({
+      ...fields,
+      authemail: email,
+      items,
+      hash: signature,
     });
 
-    console.log('[Paynow] Payment initiated:', {
+    console.log('[Paynow] Initiating payment:', {
       reference: body.reference,
-      amount: body.amount,
-      status: response.data.status,
+      amount: amountStr,
+      resultUrl,
     });
+
+    const response = await fetch('https://www.paynow.co.zw/interface/initiatetransaction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString(),
+    });
+
+    const rawText = await response.text();
+    console.log('[Paynow] Raw response:', rawText);
+
+    // Paynow responds with URL-encoded key=value pairs
+    const result = Object.fromEntries(new URLSearchParams(rawText));
+
+    if (result.status?.toLowerCase() !== 'ok') {
+      console.error('[Paynow] Error response:', result);
+      return NextResponse.json(
+        { success: false, error: result.error || result.status || 'Paynow rejected the request' },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json({
-      success: response.data.status === 'ok',
-      paymentUrl: response.data.link,
-      redirectUrl: response.data.link,
-      hash: response.data.hash,
-      error: response.data.error || undefined,
+      success: true,
+      paymentUrl: result.browserurl,
+      redirectUrl: result.browserurl,
+      pollUrl: result.pollurl,
+      hash: result.hash,
     });
-  } catch (error) {
-    console.error('[Paynow] Initiation error:', error);
+  } catch (error: any) {
+    console.error('[Paynow] Initiation error:', error?.message || error);
     return NextResponse.json(
-      { success: false, error: 'Payment initiation failed' },
+      { success: false, error: error?.message || 'Payment initiation failed' },
       { status: 500 }
     );
   }
-}
-
-/**
- * Helper function to generate Paynow signature
- */
-function getPaynowSignature(payload: any, integrationKey: string): string {
-  const dataString = JSON.stringify(payload);
-  return crypto
-    .createHmac('sha512', integrationKey)
-    .update(dataString)
-    .digest('hex');
 }
