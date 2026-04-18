@@ -24,6 +24,8 @@ declare namespace NodeJS {
 
     // App
     NEXT_PUBLIC_APP_URL?: string;
-    NEXT_PUBLIC_APP_ENVIRONMENT?: string;
-  }
+    NEXT_PUBLIC_APP_ENVIRONMENT?: string;    // Africa's Talking USSD
+    AT_API_KEY: string;
+    AT_USERNAME: string;
+    AT_USSD_CODE: string;  }
 }
