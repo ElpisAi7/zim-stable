@@ -9,14 +9,15 @@ import crypto from 'crypto';
  */
 
 interface PaynowInitiateRequest {
-  email: string;
-  phone: string;
+  email?: string;
+  phone?: string;
   amount: number;
-  currency: 'ZWL' | 'USD';
+  currency?: 'ZWL' | 'USD';
   reference: string;
   description: string;
   returnUrl: string;
-  notifyUrl: string;
+  notifyUrl?: string;
+  resultUrl?: string; // alias for notifyUrl
 }
 
 export async function POST(request: NextRequest) {
@@ -24,12 +25,17 @@ export async function POST(request: NextRequest) {
     const body: PaynowInitiateRequest = await request.json();
 
     // Validate required fields
-    if (!body.email || !body.phone || !body.amount || !body.reference) {
+    if (!body.amount || !body.reference) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields: amount and reference are required' },
         { status: 400 }
       );
     }
+
+    // Normalise optional fields with defaults
+    const notifyUrl = body.notifyUrl || body.resultUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/api/paynow/callback`;
+    const email = body.email || 'noreply@zimstable.app';
+    const phone = body.phone || '';
 
     const paynowIntegrationKey = process.env.PAYNOW_INTEGRATION_KEY;
     const paynowApiUrl = process.env.PAYNOW_API_URL || 'https://www.paynow.co.zw/api/initiate';
@@ -43,15 +49,15 @@ export async function POST(request: NextRequest) {
 
     // Build Paynow request
     const paynowPayload = {
-      resulturl: body.notifyUrl,
+      resulturl: notifyUrl,
       returnurl: body.returnUrl,
       reference: body.reference,
-      email: body.email,
+      email,
       items: {
         name: body.description,
         amount: body.amount,
       },
-      phonenumber: body.phone,
+      phonenumber: phone,
     };
 
     // Sign the request (Paynow uses HMAC-SHA512)
@@ -71,6 +77,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: response.data.status === 'ok',
+      paymentUrl: response.data.link,
       redirectUrl: response.data.link,
       hash: response.data.hash,
       error: response.data.error || undefined,
