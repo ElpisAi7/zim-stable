@@ -33,12 +33,16 @@ function end(msg: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.formData();
-  const phone = (body.get('phoneNumber') as string) || '';
-  const text = (body.get('text') as string) || '';
+  try {
+    // Parse body manually — request.formData() can hang in Next.js App Router
+    // for application/x-www-form-urlencoded payloads sent by Africa's Talking
+    const rawBody = await request.text();
+    const params = new URLSearchParams(rawBody);
+    const phone = params.get('phoneNumber') || '';
+    const text = params.get('text') || '';
 
-  const steps = text ? text.split('*') : [];
-  const level = steps.length;
+    const steps = text ? text.split('*') : [];
+    const level = steps.length;
 
   // ── Main menu ────────────────────────────────────────────────────────────
   if (level === 0) {
@@ -117,4 +121,7 @@ export async function POST(request: NextRequest) {
   }
 
   return end(`Invalid option. Please try again.`);
+  } catch {
+    return end(`Service error. Please dial again.`);
+  }
 }
