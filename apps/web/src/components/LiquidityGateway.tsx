@@ -80,7 +80,7 @@ export default function LiquidityGateway() {
 
     if (!userAccount) { alert('Please connect your wallet first'); return; }
     if (!amount || parseFloat(amount) <= 0) { alert('Please enter a valid amount'); return; }
-    if (!phone.match(/^07\d{8}$/)) { alert('Enter a valid Zimbabwean mobile number (e.g. 0771234567)'); return; }
+    if (!phone.match(/^\+2637\d{8}$/)) { alert('Enter a valid Zimbabwean mobile number (e.g. +263771234567)'); return; }
 
     setPaymentState('loading');
 
@@ -226,9 +226,9 @@ export default function LiquidityGateway() {
           <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
             <p className="text-xs font-bold text-purple-800 dark:text-purple-200 uppercase mb-2">🧪 Test mode — use these phone numbers</p>
             <ul className="text-xs text-purple-700 dark:text-purple-300 space-y-1">
-              <li><span className="font-mono font-semibold">0771111111</span> — Payment succeeds</li>
-              <li><span className="font-mono font-semibold">0772222222</span> — Delayed success</li>
-              <li><span className="font-mono font-semibold">0773333333</span> — Payment fails</li>
+              <li><span className="font-mono font-semibold">+263771111111</span> — Payment succeeds</li>
+              <li><span className="font-mono font-semibold">+263772222222</span> — Delayed success</li>
+              <li><span className="font-mono font-semibold">+263773333333</span> — Payment fails</li>
             </ul>
           </div>
         )}
@@ -266,7 +266,7 @@ export default function LiquidityGateway() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               disabled={!userAccount}
-              placeholder="0771234567"
+              placeholder="+263771234567"
               className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
