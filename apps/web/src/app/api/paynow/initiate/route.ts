@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
     const amountStr = parseFloat(String(body.amount)).toFixed(2);
 
     // Paynow items format: "item name:amount," (trailing comma, matches PHP SDK)
+    const items = `${body.description}:${amountStr},`;
+
     // items is added to the fields array BEFORE hash is computed in the PHP SDK
     const hashFields: Record<string, string> = {
       resulturl: resultUrl,
