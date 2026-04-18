@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const amountStr = parseFloat(String(body.amount)).toFixed(2);
 
     // Paynow items format: "item name:amount," (trailing comma, matches PHP SDK)
-    const items = `${body.description}:${amountStr},`;
+    const email = body.email || process.env.PAYNOW_MERCHANT_EMAIL || '';
 
     // Fields MUST be in this exact order — mirrors Paynow PHP SDK createLink()
     // items is added to the fields array BEFORE hash is computed in the PHP SDK

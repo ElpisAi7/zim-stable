@@ -3,6 +3,7 @@ declare namespace NodeJS {
     // Paynow
     PAYNOW_INTEGRATION_ID?: string;
     PAYNOW_INTEGRATION_KEY?: string;
+    PAYNOW_MERCHANT_EMAIL?: string;
     PAYNOW_API_URL?: string;
     PAYNOW_STATUS_URL?: string;
     PAYNOW_RESULT_URL?: string;
