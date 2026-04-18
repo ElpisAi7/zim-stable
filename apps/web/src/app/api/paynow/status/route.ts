@@ -1,5 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
+
+/**
+ * Paynow Transaction Status Check
+ * GET /api/paynow/status?pollUrl=<url>
+ *
+ * Fetches the Paynow pollUrl and returns normalised status.
+ * The pollUrl is returned by the remotetransaction endpoint on initiation.
+ */
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const pollUrl = searchParams.get('pollUrl');
+
+  if (!pollUrl) {
+    return NextResponse.json({ error: 'pollUrl query param is required' }, { status: 400 });
+  }
+
+  try {
+    const response = await fetch(pollUrl, { cache: 'no-store' });
+    const rawText = await response.text();
+    const result = Object.fromEntries(new URLSearchParams(rawText));
+
+    // Paynow status values: created, sent, cancelled, disputed, failed,
+    //                        refunded, delivered, paid, awaiting delivery
+    const raw = (result.status || '').toLowerCase();
+    const status = raw === 'paid' ? 'paid'
+      : raw === 'failed' || raw === 'cancelled' ? 'failed'
+      : 'pending';
+
+    return NextResponse.json({
+      status,
+      rawStatus: result.status,
+      amount: result.amount,
+      reference: result.reference,
+      paynowReference: result.paynowreference,
+    });
+  } catch (error: any) {
+    console.error('[Paynow] Status poll error:', error?.message);
+    return NextResponse.json({ error: 'Status check failed' }, { status: 500 });
+  }
+}
+
 
 /**
  * Paynow Transaction Status Check API Route
