@@ -26,8 +26,8 @@ import { triggerPaynowRemote, zwlToUsd } from '@/lib/paynow-remote';
  *   [3] → Check balance: show cUSD balance for registered wallet
  */
 
-const CELO_RPC = 'https://forno.celo.org';
-const CUSD_ADDRESS = '0x765DE816845861e75A05fA979517178a0586e3f3';
+const CELO_RPC = 'https://alfajores-forno.celo-testnet.org';
+const CUSD_ADDRESS = '0x6473f8816d7380d140ff289bf5c5c147048fb252'; // MockUSDC on Celo Sepolia
 // ERC-20 balanceOf(address) selector
 const BALANCE_OF_SELECTOR = '0x70a08231';
 
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     try {
       const balance = await getCusdBalance(wallet);
       const shortWallet = `${wallet.slice(0, 8)}...${wallet.slice(-4)}`;
-      return end(`Wallet: ${shortWallet}\n\ncUSD Balance:\n${balance} cUSD`);
+      return end(`Wallet: ${shortWallet}\n\nmUSDC Balance:\n${balance} mUSDC`);
     } catch {
       return end(`Could not fetch balance. Please try again later.`);
     }

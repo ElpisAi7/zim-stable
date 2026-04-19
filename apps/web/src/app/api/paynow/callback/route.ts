@@ -5,34 +5,37 @@ import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { celo } from 'viem/chains';
 
-const CUSD_ADDRESS = '0x765DE816845861e75A05fA979517178a0586e3f3' as const;
-const ZWG_TO_USD = 0.015; // ZWG → cUSD rate (same as paynow-remote)
+// Mock USDC on Celo Sepolia — mint() is public so no admin balance needed
+const MUSDC_ADDRESS = '0x6473f8816d7380d140ff289bf5c5c147048fb252' as const;
+const ZWG_TO_USD = 0.015; // ZWG → mUSDC rate
 
-const CUSD_TRANSFER_ABI = [
+const MUSDC_MINT_ABI = [
   {
-    name: 'transfer',
+    name: 'mint',
     type: 'function' as const,
     stateMutability: 'nonpayable' as const,
     inputs: [
-      { name: 'recipient', type: 'address' },
+      { name: 'to', type: 'address' },
       { name: 'amount', type: 'uint256' },
     ],
-    outputs: [{ name: '', type: 'bool' }],
+    outputs: [],
   },
 ] as const;
 
-async function sendCusd(toAddress: string, zwgAmount: number): Promise<string> {
+async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> {
   const rawKey = process.env.ADMIN_PRIVATE_KEY;
   if (!rawKey) throw new Error('ADMIN_PRIVATE_KEY not set');
   const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
-  const client = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
-  const cusdAmount = zwgAmount * ZWG_TO_USD;
-  const amountWei = parseUnits(cusdAmount.toFixed(6), 18);
+  // Use Celo Sepolia (testnet) to match deployed MockUSDC
+  const celoSepolia = { ...celo, id: 44787, name: 'Celo Sepolia', rpcUrls: { default: { http: ['https://alfajores-forno.celo-testnet.org'] } } };
+  const client = createWalletClient({ account, chain: celoSepolia as typeof celo, transport: http('https://alfajores-forno.celo-testnet.org') });
+  const usdcAmount = zwgAmount * ZWG_TO_USD;
+  const amountWei = parseUnits(usdcAmount.toFixed(6), 18);
   const hash = await client.writeContract({
-    address: CUSD_ADDRESS,
-    abi: CUSD_TRANSFER_ABI,
-    functionName: 'transfer',
+    address: MUSDC_ADDRESS,
+    abi: MUSDC_MINT_ABI,
+    functionName: 'mint',
     args: [toAddress as `0x${string}`, amountWei],
   });
   return hash;
@@ -132,10 +135,10 @@ export async function POST(request: NextRequest) {
       // Store transaction
       transactionLog.set(body.reference, transaction);
 
-      // Send cUSD directly from admin wallet to user's Celo wallet
+      // Mint mUSDC directly to user's Celo Sepolia wallet
       try {
-        const txHash = await sendCusd(walletAddress, body.amount);
-        console.log('[Payout] cUSD sent on-chain:', { txHash, to: walletAddress, zwg: body.amount });
+        const txHash = await mintMusdc(walletAddress, body.amount);
+        console.log('[Payout] mUSDC minted on-chain:', { txHash, to: walletAddress, zwg: body.amount });
         transaction.status = 'completed';
         transaction.yellowCardTxId = txHash;
         transactionLog.set(body.reference, transaction);
