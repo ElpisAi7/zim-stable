@@ -1,9 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseUnits } from 'viem';
 import { Loader2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { UserBalance } from './user-balance';
+import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ABI } from '@/lib/contracts';
+
+const CUSD_ADDRESS = '0x765DE816845861e75A05fA979517178a0586e3f3' as const;
+// ERC-20 approve ABI (minimal)
+const ERC20_ABI = [
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
 
 interface ExchangeRate {
   zwlToUsd: number;
@@ -21,6 +35,9 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
 
 export default function LiquidityGateway() {
   const { address: userAccount } = useAccount();
+  const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
+
+  // ── Buy state ────────────────────────────────────────────────────────────
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('ecocash');
@@ -31,6 +48,26 @@ export default function LiquidityGateway() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const [registered, setRegistered] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ── Sell state ───────────────────────────────────────────────────────────
+  const [sellAmount, setSellAmount] = useState('');
+  const [sellPhone, setSellPhone] = useState('');
+  const [sellState, setSellState] = useState<'idle' | 'approving' | 'depositing' | 'recording' | 'done' | 'failed'>('idle');
+  const [sellMessage, setSellMessage] = useState('');
+  const [sellId, setSellId] = useState('');
+
+  const { data: cusdBalance, refetch: refetchCusd } = useBalance({ address: userAccount, token: CUSD_ADDRESS, query: { refetchInterval: 10_000 } });
+
+  // Refetch when user returns to tab after USSD/Paynow payment
+  React.useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refetchCusd(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const { writeContractAsync: approveAsync } = useWriteContract();
+  const { writeContractAsync: depositAsync } = useWriteContract();
 
   const [exchangeRate] = useState<ExchangeRate>({
     zwlToUsd: 0.015,
@@ -140,6 +177,76 @@ export default function LiquidityGateway() {
     setPhone('');
   };
 
+  const handleSell = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userAccount) { alert('Please connect your wallet first'); return; }
+    if (!sellAmount || parseFloat(sellAmount) <= 0) { alert('Enter a valid cUSD amount'); return; }
+    if (!sellPhone.match(/^\+2637\d{8}$/)) { alert('Enter a valid Zimbabwean mobile number (e.g. +263771234567)'); return; }
+
+    const amountUnits = parseUnits(sellAmount, 18);
+
+    try {
+      // Step 1: Approve escrow to spend cUSD
+      setSellState('approving');
+      setSellMessage('Step 1/2: Approve cUSD spend in your wallet…');
+      const approveTxHash = await approveAsync({
+        address: CUSD_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [ZIM_ESCROW_ADDRESS, amountUnits],
+      });
+
+      // Step 2: Deposit into escrow
+      setSellState('depositing');
+      setSellMessage('Step 2/2: Lock cUSD in escrow…');
+      const depositTxHash = await depositAsync({
+        address: ZIM_ESCROW_ADDRESS,
+        abi: ZIM_ESCROW_ABI,
+        functionName: 'depositEscrow',
+        args: [CUSD_ADDRESS, amountUnits, sellPhone],
+      });
+
+      // Step 3: Notify backend
+      setSellState('recording');
+      setSellMessage('Recording sell request…');
+      const res = await fetch('/api/sell/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          escrowId: 0, // will be read from event log by admin; placeholder
+          txHash: depositTxHash,
+          wallet: userAccount,
+          phone: sellPhone,
+          amountCusd: sellAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Backend error');
+
+      setSellId(data.sellId);
+      setSellState('done');
+      setSellMessage(data.message);
+      setRefetchTrigger((n) => n + 1);
+    } catch (err: any) {
+      console.error('[Sell] Error:', err);
+      setSellState('failed');
+      setSellMessage(err?.shortMessage || err?.message || 'Transaction failed. Please try again.');
+    }
+  };
+
+  const resetSell = () => {
+    setSellState('idle');
+    setSellMessage('');
+    setSellAmount('');
+    setSellPhone('');
+    setSellId('');
+  };
+
+  const isSellFormValid = userAccount && sellAmount && parseFloat(sellAmount) > 0 &&
+    parseFloat(sellAmount) <= parseFloat(cusdBalance?.formatted || '0') &&
+    sellPhone && sellState === 'idle';
+  const zwgEstimate = sellAmount ? (parseFloat(sellAmount) / 0.015).toFixed(2) : '0.00';
+
   const isFormValid = userAccount && amount && parseFloat(amount) > 0 && phone && paymentState === 'idle';
 
   // ── Post-submission screens ──────────────────────────────────────────────
@@ -224,9 +331,33 @@ export default function LiquidityGateway() {
 
 <UserBalance refetchTrigger={refetchTrigger} />
 
-        <div className="mb-8 text-center">
+        <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">💱 Liquidity Bridge</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400">Convert mobile money to stablecoins instantly</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Convert between mobile money and stablecoins</p>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden mb-6">
+          <button
+            onClick={() => setActiveTab('buy')}
+            className={`flex-1 py-2 text-sm font-semibold transition ${
+              activeTab === 'buy'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+            }`}
+          >
+            📥 Buy (On-Ramp)
+          </button>
+          <button
+            onClick={() => setActiveTab('sell')}
+            className={`flex-1 py-2 text-sm font-semibold transition ${
+              activeTab === 'sell'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+            }`}
+          >
+            📤 Sell (Off-Ramp)
+          </button>
         </div>
 
         {!userAccount && (
@@ -235,7 +366,110 @@ export default function LiquidityGateway() {
           </div>
         )}
 
-        {/* USSD dial-in option */}
+        {/* ── SELL TAB ─────────────────────────────────────────────────── */}
+        {activeTab === 'sell' && (
+          <>
+            {sellState === 'done' && (
+              <div className="text-center space-y-4">
+                <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto" />
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Sell request submitted!</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{sellMessage}</p>
+                <p className="text-xs text-slate-400 font-mono">Ref: {sellId}</p>
+                <button onClick={resetSell} className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition">
+                  Sell more
+                </button>
+              </div>
+            )}
+
+            {sellState === 'failed' && (
+              <div className="text-center space-y-4">
+                <AlertCircle className="w-14 h-14 text-red-500 mx-auto" />
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Transaction failed</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{sellMessage}</p>
+                <button onClick={resetSell} className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition">
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {(sellState === 'approving' || sellState === 'depositing' || sellState === 'recording') && (
+              <div className="text-center space-y-4">
+                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
+                <p className="text-slate-600 dark:text-slate-400 font-medium">{sellMessage}</p>
+              </div>
+            )}
+
+            {sellState === 'idle' && (
+              <form onSubmit={handleSell} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">cUSD amount to sell</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={sellAmount}
+                    onChange={(e) => setSellAmount(e.target.value)}
+                    disabled={!userAccount}
+                    placeholder="e.g. 5.00"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:opacity-50"
+                  />
+                  {cusdBalance && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Available: {parseFloat(cusdBalance.formatted).toFixed(4)} cUSD
+                    </p>
+                  )}
+                  {sellAmount && parseFloat(sellAmount) > parseFloat(cusdBalance?.formatted || '0') && (
+                    <p className="text-xs text-red-500">Insufficient cUSD balance</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Receive ZWG on (EcoCash/OneMoney)</label>
+                  <input
+                    type="tel"
+                    value={sellPhone}
+                    onChange={(e) => setSellPhone(e.target.value)}
+                    disabled={!userAccount}
+                    placeholder="+263771234567"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:opacity-50"
+                  />
+                </div>
+
+                {sellAmount && parseFloat(sellAmount) > 0 && (
+                  <div className="bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 rounded-lg p-4 border border-emerald-200 dark:border-emerald-700">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">You&apos;ll receive ≈</p>
+                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{zwgEstimate} ZWG</p>
+                    </div>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Sent to your mobile money within 10 minutes</p>
+                  </div>
+                )}
+
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    ⚠️ This locks your cUSD in a smart contract escrow on Celo. ZWG is released to your mobile money after on-chain confirmation. Requires two wallet signatures (approve + deposit).
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!isSellFormValid}
+                  className={`w-full py-3 px-4 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                    isSellFormValid
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white cursor-pointer shadow-lg'
+                      : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  💸 Sell {sellAmount || '0'} cUSD → ZWG
+                </button>
+              </form>
+            )}
+          </>
+        )}
+
+        {/* ── BUY TAB ──────────────────────────────────────────────────── */}
+        {activeTab === 'buy' && (
+          <>
         <div className="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
           <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 uppercase mb-1">📞 No internet? Use USSD</p>
           <p className="text-sm font-mono font-bold text-indigo-900 dark:text-indigo-100">*384*28561#</p>
@@ -371,6 +605,8 @@ export default function LiquidityGateway() {
             No smartphone? Dial <span className="font-mono font-semibold">*384*28561#</span> from any phone.
           </p>
         </form>
+        </>
+        )}
       </div>
     </div>
   );

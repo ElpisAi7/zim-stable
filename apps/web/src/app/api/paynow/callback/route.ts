@@ -1,33 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { getWallet } from '@/lib/wallet-store';
 
 /**
  * Paynow Callback Handler - Direct Liquidity Bridge
  * POST /api/paynow/callback
  * Receives payment confirmation from Paynow and triggers Yellow Card payout instantly
- * 
+ *
+ * Paynow sends application/x-www-form-urlencoded POST:
+ *   reference, amount, status, pollurl, paynowreference, hash
+ *
  * Flow:
  * 1. User sends EcoCash via Paynow
- * 2. Paynow confirms payment
- * 3. Server receives callback
+ * 2. Paynow confirms payment via this callback
+ * 3. Server verifies with pollurl
  * 4. Server calls Yellow Card API to swap ZWL → cUSD/USDC
- * 5. Stablecoins land instantly in user's Celo wallet
+ * 5. Stablecoins land in user's Celo wallet
  */
-
-interface PaynowCallbackPayload {
-  id: string;
-  reference: string;
-  amount: number;
-  status: string;
-  pollurl: string;
-}
 
 interface LiquidityTransaction {
   paymentReference: string;
   amount: number;
   currency: string;
   status: 'pending' | 'paid' | 'processing' | 'completed' | 'failed';
-  caloWalletAddress?: string;
+  celoWalletAddress?: string;
   yellowCardTxId?: string;
   timestamp: Date;
 }
@@ -37,30 +33,54 @@ const transactionLog = new Map<string, LiquidityTransaction>();
 
 export async function POST(request: NextRequest) {
   try {
-    const body: PaynowCallbackPayload = await request.json();
+    // Paynow sends application/x-www-form-urlencoded
+    const rawBody = await request.text();
+    const params = new URLSearchParams(rawBody);
+    const body = {
+      reference: params.get('reference') || '',
+      amount: parseFloat(params.get('amount') || '0'),
+      status: params.get('status') || '',
+      pollurl: params.get('pollurl') || '',
+    };
 
     console.log('[Liquidity] Paynow callback received:', {
       reference: body.reference,
-      id: body.id,
       status: body.status,
       amount: body.amount,
     });
 
-    // Verify the transaction with Paynow
+    // Verify the transaction with Paynow by polling
     const verifyResponse = await axios.get(body.pollurl);
+    // Paynow poll returns URL-encoded text; axios may parse it as a string
+    let verifiedStatus: string;
+    if (typeof verifyResponse.data === 'string') {
+      const pollParams = new URLSearchParams(verifyResponse.data);
+      verifiedStatus = pollParams.get('status') || '';
+    } else {
+      verifiedStatus = verifyResponse.data.status || '';
+    }
 
-    if (verifyResponse.data.status === 'Paid') {
+    if (verifiedStatus.toLowerCase() === 'paid') {
       console.log('[Liquidity] Payment confirmed:', body.reference);
 
-      // Extract wallet address from reference (format: "reference_walletAddress")
-      const [paymentRef, walletAddress] = body.reference.split('_');
-      
-      if (!walletAddress || !walletAddress.startsWith('0x')) {
-        console.error('[Liquidity] Invalid wallet address in reference:', body.reference);
-        return NextResponse.json(
-          { error: 'Invalid wallet address' },
-          { status: 400 }
-        );
+      // Extract wallet address from reference.
+      // Web flow format:  "<timestamp>_<0xWallet>" → last segment is wallet
+      // USSD flow format: "USSD_<timestamp>_<phoneDigits>" → look up from wallet store
+      const parts = body.reference.split('_');
+      let walletAddress: string | null = null;
+
+      const lastPart = parts[parts.length - 1];
+      if (lastPart.startsWith('0x')) {
+        walletAddress = lastPart;
+      } else {
+        // USSD flow: phone digits are in the last part — look up registered wallet
+        const phoneDigits = lastPart;
+        const phone = `+${phoneDigits}`;
+        walletAddress = await getWallet(phone);
+        if (!walletAddress) {
+          console.error('[Liquidity] No wallet registered for phone', phone);
+          return NextResponse.json({ error: 'No wallet registered for this phone' }, { status: 400 });
+        }
       }
 
       // Create transaction record
@@ -69,7 +89,7 @@ export async function POST(request: NextRequest) {
         amount: body.amount,
         currency: 'ZWL',
         status: 'paid',
-        caloWalletAddress: walletAddress,
+        celoWalletAddress: walletAddress,
         timestamp: new Date(),
       };
 
@@ -77,8 +97,9 @@ export async function POST(request: NextRequest) {
       transactionLog.set(body.reference, transaction);
 
       // Trigger Yellow Card swap immediately
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://zim-stable-web.vercel.app';
       try {
-        const yellowCardResponse = await fetch('/api/yellowcard/payout', {
+        const yellowCardResponse = await fetch(`${appUrl}/api/yellowcard/payout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

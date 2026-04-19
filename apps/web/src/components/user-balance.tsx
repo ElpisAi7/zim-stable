@@ -12,12 +12,21 @@ function BalanceDisplay({ address, token, symbol, refetchTrigger }: { address: `
   const { data, isLoading, refetch } = useBalance({
     address,
     token,
+    query: { refetchInterval: 10_000 },
   });
 
   React.useEffect(() => {
     if (refetchTrigger) refetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refetchTrigger]);
+
+  // Refetch immediately when the user returns to the tab (e.g. after paying via USSD/Paynow)
+  React.useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refetch(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex justify-between items-center">
