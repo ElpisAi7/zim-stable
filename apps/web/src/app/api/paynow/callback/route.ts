@@ -5,23 +5,26 @@ import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { celo } from 'viem/chains';
 
-// Mock USDC on Celo Sepolia — mint() is public so no admin balance needed
+// Mock USDC on Celo Sepolia
+// Account 2 (ADMIN_PRIVATE_KEY) = liquidity wallet holding 150 mUSDC
+// It transfers to the buyer (Account 3 = end user)
 const MUSDC_ADDRESS = '0x6473f8816d7380d140ff289bf5c5c147048fb252' as const;
-const ZWG_TO_USD = 0.015; // ZWG → mUSDC rate
+const ZWG_TO_USD = 0.015; // ZWG → mUSDC rate (replaces Yellow Card until API is ready)
 
-const MUSDC_MINT_ABI = [
+const MUSDC_TRANSFER_ABI = [
   {
-    name: 'mint',
+    name: 'transfer',
     type: 'function' as const,
     stateMutability: 'nonpayable' as const,
     inputs: [
       { name: 'to', type: 'address' },
       { name: 'amount', type: 'uint256' },
     ],
-    outputs: [],
+    outputs: [{ name: '', type: 'bool' }],
   },
 ] as const;
 
+// Liquidity wallet (Account 2) transfers mUSDC from its own balance to the buyer
 async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> {
   const rawKey = process.env.ADMIN_PRIVATE_KEY;
   if (!rawKey) throw new Error('ADMIN_PRIVATE_KEY not set');
@@ -32,8 +35,8 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   const amountWei = parseUnits(usdcAmount.toFixed(6), 18);
   const hash = await client.writeContract({
     address: MUSDC_ADDRESS,
-    abi: MUSDC_MINT_ABI,
-    functionName: 'mint',
+    abi: MUSDC_TRANSFER_ABI,
+    functionName: 'transfer',
     args: [toAddress as `0x${string}`, amountWei],
   });
   return hash;
