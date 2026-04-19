@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getWallet } from '@/lib/wallet-store';
+import { createWalletClient, http, parseUnits } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { celo } from 'viem/chains';
+
+const CUSD_ADDRESS = '0x765DE816845861e75A05fA979517178a0586e3f3' as const;
+const ZWG_TO_USD = 0.015; // ZWG → cUSD rate (same as paynow-remote)
+
+const CUSD_TRANSFER_ABI = [
+  {
+    name: 'transfer',
+    type: 'function' as const,
+    stateMutability: 'nonpayable' as const,
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
+
+async function sendCusd(toAddress: string, zwgAmount: number): Promise<string> {
+  const rawKey = process.env.ADMIN_PRIVATE_KEY;
+  if (!rawKey) throw new Error('ADMIN_PRIVATE_KEY not set');
+  const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
+  const account = privateKeyToAccount(privateKey);
+  const client = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
+  const cusdAmount = zwgAmount * ZWG_TO_USD;
+  const amountWei = parseUnits(cusdAmount.toFixed(6), 18);
+  const hash = await client.writeContract({
+    address: CUSD_ADDRESS,
+    abi: CUSD_TRANSFER_ABI,
+    functionName: 'transfer',
+    args: [toAddress as `0x${string}`, amountWei],
+  });
+  return hash;
+}
 
 /**
  * Paynow Callback Handler - Direct Liquidity Bridge
@@ -96,51 +132,26 @@ export async function POST(request: NextRequest) {
       // Store transaction
       transactionLog.set(body.reference, transaction);
 
-      // Trigger Yellow Card swap immediately
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://zim-stable-web.vercel.app';
+      // Send cUSD directly from admin wallet to user's Celo wallet
       try {
-        const yellowCardResponse = await fetch(`${appUrl}/api/yellowcard/payout`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            paymentReference: body.reference,
-            amount: body.amount,
-            fromCurrency: 'ZWL',
-            toCurrency: 'cUSD',
-            toAddress: walletAddress,
-          }),
-        });
-
-        if (!yellowCardResponse.ok) {
-          throw new Error(`Yellow Card error: ${yellowCardResponse.statusText}`);
-        }
-
-        const yellowCardData = await yellowCardResponse.json();
-        console.log('[Liquidity] Yellow Card payout initiated:', yellowCardData);
-
-        // Update transaction with Yellow Card ID
-        transaction.yellowCardTxId = yellowCardData.transactionId;
-        transaction.status = 'processing';
+        const txHash = await sendCusd(walletAddress, body.amount);
+        console.log('[Payout] cUSD sent on-chain:', { txHash, to: walletAddress, zwg: body.amount });
+        transaction.status = 'completed';
+        transaction.yellowCardTxId = txHash;
         transactionLog.set(body.reference, transaction);
 
         return NextResponse.json({
           confirmed: true,
           reference: body.reference,
-          yellowCardTxId: yellowCardData.transactionId,
-          message: 'Payment received. Processing stablecoin payout...',
+          txHash,
+          message: 'Payment received. cUSD sent to your Celo wallet.',
         });
-      } catch (yellowCardError) {
-        console.error('[Liquidity] Yellow Card payout failed:', yellowCardError);
+      } catch (payoutError) {
+        console.error('[Payout] cUSD transfer failed:', payoutError);
         transaction.status = 'failed';
         transactionLog.set(body.reference, transaction);
-
-        // TODO: Trigger refund to user's EcoCash wallet
         return NextResponse.json(
-          {
-            confirmed: true,
-            reference: body.reference,
-            error: 'Payout processing failed. Refund will be initiated.',
-          },
+          { confirmed: true, reference: body.reference, error: 'Payout failed. Please contact support.' },
           { status: 500 }
         );
       }
