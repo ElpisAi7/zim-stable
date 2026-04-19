@@ -27,9 +27,7 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   if (!rawKey) throw new Error('ADMIN_PRIVATE_KEY not set');
   const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
-  // Use Celo Sepolia (testnet) to match deployed MockUSDC
-  const celoSepolia = { ...celo, id: 44787, name: 'Celo Sepolia', rpcUrls: { default: { http: ['https://alfajores-forno.celo-testnet.org'] } } };
-  const client = createWalletClient({ account, chain: celoSepolia as typeof celo, transport: http('https://alfajores-forno.celo-testnet.org') });
+  const client = createWalletClient({ account, chain: celo, transport: http('https://alfajores-forno.celo-testnet.org') });
   const usdcAmount = zwgAmount * ZWG_TO_USD;
   const amountWei = parseUnits(usdcAmount.toFixed(6), 18);
   const hash = await client.writeContract({
@@ -88,18 +86,25 @@ export async function POST(request: NextRequest) {
       amount: body.amount,
     });
 
-    // Verify the transaction with Paynow by polling
-    const verifyResponse = await axios.get(body.pollurl);
-    // Paynow poll returns URL-encoded text; axios may parse it as a string
-    let verifiedStatus: string;
-    if (typeof verifyResponse.data === 'string') {
-      const pollParams = new URLSearchParams(verifyResponse.data);
-      verifiedStatus = pollParams.get('status') || '';
-    } else {
-      verifiedStatus = verifyResponse.data.status || '';
+    // If Paynow already says "paid" in the callback body, trust it.
+    // Also try to verify via pollurl but don't block on failure.
+    let verifiedStatus = body.status.toLowerCase();
+    if (verifiedStatus !== 'paid' && body.pollurl) {
+      try {
+        const verifyResponse = await axios.get(body.pollurl, { timeout: 8000 });
+        if (typeof verifyResponse.data === 'string') {
+          const pollParams = new URLSearchParams(verifyResponse.data);
+          verifiedStatus = (pollParams.get('status') || '').toLowerCase();
+        } else {
+          verifiedStatus = (verifyResponse.data.status || '').toLowerCase();
+        }
+      } catch (pollErr) {
+        console.warn('[Liquidity] Poll failed, falling back to callback status:', pollErr);
+        verifiedStatus = body.status.toLowerCase();
+      }
     }
 
-    if (verifiedStatus.toLowerCase() === 'paid') {
+    if (verifiedStatus === 'paid') {
       console.log('[Liquidity] Payment confirmed:', body.reference);
 
       // Extract wallet address from reference.

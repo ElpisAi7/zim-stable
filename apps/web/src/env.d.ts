@@ -30,5 +30,7 @@ declare namespace NodeJS {
     AT_USSD_CODE: string;
     // Upstash Redis (wallet store)
     UPSTASH_REDIS_REST_URL: string;
-    UPSTASH_REDIS_REST_TOKEN: string;  }
+    UPSTASH_REDIS_REST_TOKEN: string;
+    ADMIN_PRIVATE_KEY?: string;
+  }
 }

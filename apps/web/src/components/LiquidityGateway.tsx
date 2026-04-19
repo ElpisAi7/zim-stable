@@ -41,7 +41,7 @@ export default function LiquidityGateway() {
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('ecocash');
-  const [receiveToken, setReceiveToken] = useState('cUSD');
+  const [receiveToken, setReceiveToken] = useState('mUSDC');
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [pollUrl, setPollUrl] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -447,7 +447,7 @@ export default function LiquidityGateway() {
 
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
                   <p className="text-xs text-amber-800 dark:text-amber-200">
-                    ⚠️ This locks your cUSD in a smart contract escrow on Celo. ZWG is released to your mobile money after on-chain confirmation. Requires two wallet signatures (approve + deposit).
+                    ⚠️ This locks your mUSDC in a smart contract escrow on Celo. ZWG is released to your mobile money after on-chain confirmation. Requires two wallet signatures (approve + deposit).
                   </p>
                 </div>
 
@@ -460,7 +460,7 @@ export default function LiquidityGateway() {
                       : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-500 cursor-not-allowed'
                   }`}
                 >
-                  💸 Sell {sellAmount || '0'} cUSD → ZWG
+                  💸 Sell {sellAmount || '0'} mUSDC → ZWG
                 </button>
               </form>
             )}
@@ -555,8 +555,7 @@ export default function LiquidityGateway() {
               disabled={!userAccount}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="cUSD">cUSD (Celo)</option>
-              <option value="USDC">USDC (Celo)</option>
+              <option value="mUSDC">mUSDC – Mock USDC (Celo Sepolia testnet)</option>
             </select>
           </div>
 
