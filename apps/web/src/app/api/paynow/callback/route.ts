@@ -71,10 +71,19 @@ interface LiquidityTransaction {
 // In-memory store (replace with database in production)
 const transactionLog = new Map<string, LiquidityTransaction>();
 
+// Last callback log for debugging (last 10 raw hits)
+const callbackLog: { ts: string; body: string; error?: string }[] = [];
+
 export async function POST(request: NextRequest) {
   try {
     // Paynow sends application/x-www-form-urlencoded
     const rawBody = await request.text();
+
+    // Record raw hit for debugging
+    callbackLog.push({ ts: new Date().toISOString(), body: rawBody });
+    if (callbackLog.length > 10) callbackLog.shift();
+    console.log('[Callback] Raw body received:', rawBody);
+
     const params = new URLSearchParams(rawBody);
     const body = {
       reference: params.get('reference') || '',
@@ -145,6 +154,12 @@ export async function POST(request: NextRequest) {
 
       // Mint mUSDC directly to user's Celo Sepolia wallet
       try {
+        if (!process.env.ADMIN_PRIVATE_KEY) {
+          const msg = '[Payout] ADMIN_PRIVATE_KEY is not set in environment variables!';
+          console.error(msg);
+          callbackLog[callbackLog.length - 1].error = msg;
+          return NextResponse.json({ confirmed: true, reference: body.reference, error: 'Server misconfiguration: payout key missing' }, { status: 500 });
+        }
         const txHash = await mintMusdc(walletAddress, body.amount);
         console.log('[Payout] mUSDC minted on-chain:', { txHash, to: walletAddress, zwg: body.amount });
         transaction.status = 'completed';
@@ -182,10 +197,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper endpoint to check transaction status
+// Helper endpoint to check transaction status or debug last callbacks
 export async function GET(request: NextRequest) {
   try {
     const reference = request.nextUrl.searchParams.get('reference');
+    const debug = request.nextUrl.searchParams.get('debug');
+
+    if (debug === '1') {
+      return NextResponse.json({
+        adminKeySet: !!process.env.ADMIN_PRIVATE_KEY,
+        lastCallbacks: callbackLog,
+        transactionCount: transactionLog.size,
+      });
+    }
+
     if (!reference) {
       return NextResponse.json({ error: 'Reference required' }, { status: 400 });
     }
