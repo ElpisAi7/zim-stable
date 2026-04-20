@@ -93,7 +93,7 @@ export default function P2PGateway() {
     hash: mintHash,
   });
 
-  const { writeContract: writeSignalPayment, isPending: isPendingSignal, data: signalHash } = useWriteContract();
+  const { writeContract: writeSignalPayment, isPending: isPendingSignal, data: signalHash, reset: resetSignal, isError: isErrorSignal } = useWriteContract();
   const { isLoading: isConfirmingSignal, isSuccess: isSuccessSignal } = useWaitForTransactionReceipt({
     hash: signalHash,
   });
@@ -196,7 +196,8 @@ export default function P2PGateway() {
           shouldAdd: isBuyerZero && isStatusActive,
         });
         
-        if (escrow && isBuyerZero && isStatusActive) {
+        const isSelfEscrow = escrow?.seller?.toLowerCase() === userAccount?.toLowerCase();
+        if (escrow && isBuyerZero && isStatusActive && !isSelfEscrow) {
           console.log(`[DEBUG] Escrow ${i} is available, adding to list`);
           escrows.push({ id: i, ...escrow });
         }
@@ -394,27 +395,27 @@ export default function P2PGateway() {
     }
   };
 
-  const handleBuyEscrow = async (escrowId: number) => {
-    try {
-      console.log('[DEBUG] handleBuyEscrow: Attempting to signal payment for escrow', escrowId);
-      
-      if (!userAccount) {
-        alert("Please connect your wallet first");
-        return;
-      }
-
-      writeSignalPayment({
-        address: ZIM_ESCROW_ADDRESS,
-        abi: ZIM_ESCROW_ABI,
-        functionName: "signalPayment",
-        args: [BigInt(escrowId)],
-      });
-      
-      console.log('[DEBUG] handleBuyEscrow: writeSignalPayment called');
-    } catch (err) {
-      console.error('Error buying escrow:', err);
-      alert("Failed to buy escrow. Please try again.");
+  const handleBuyEscrow = async (escrowId: number, sellerAddress?: string) => {
+    if (!userAccount) {
+      alert("Please connect your wallet first");
+      return;
     }
+
+    if (sellerAddress && sellerAddress.toLowerCase() === userAccount.toLowerCase()) {
+      alert("You cannot buy your own escrow.");
+      return;
+    }
+
+    // Reset any previous error state so the button is not stuck
+    resetSignal();
+
+    console.log('[DEBUG] handleBuyEscrow: signalPayment for escrow', escrowId, 'buyer', userAccount);
+    writeSignalPayment({
+      address: ZIM_ESCROW_ADDRESS,
+      abi: ZIM_ESCROW_ABI,
+      functionName: "signalPayment",
+      args: [BigInt(escrowId)],
+    });
   };
 
   const handleReleaseFunds = async (escrowId: number) => {
@@ -856,7 +857,7 @@ export default function P2PGateway() {
                   </div>
 
                   <button
-                    onClick={() => handleBuyEscrow(escrow.id)}
+                    onClick={() => handleBuyEscrow(escrow.id, escrow.seller)}
                     disabled={isPendingSignal}
                     className="w-full mt-3 bg-green-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-600 disabled:bg-zinc-400 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
                   >
