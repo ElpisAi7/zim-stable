@@ -5,9 +5,9 @@ import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { celo } from 'viem/chains';
 
-// cUSD on Celo Mainnet
-const MUSDC_ADDRESS = '0x765DE816845861e75A25fCA122bb6898B8B1282a' as const;
-const ZWG_TO_USD = 0.015; // ZWG → mUSDC rate (replaces Yellow Card until API is ready)
+// Native USDC on Celo Mainnet (6 decimals)
+const MUSDC_ADDRESS = '0xcebA9300f2b948710d2653dD7B07f33A8B32118C' as const;
+const ZWG_TO_USD = 0.015; // ZWG → USDC rate
 
 const MUSDC_TRANSFER_ABI = [
   {
@@ -30,7 +30,7 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   const account = privateKeyToAccount(privateKey);
   const client = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
   const usdcAmount = zwgAmount * ZWG_TO_USD;
-  const amountWei = parseUnits(usdcAmount.toFixed(6), 18);
+  const amountWei = parseUnits(usdcAmount.toFixed(6), 6);
   const hash = await client.writeContract({
     address: MUSDC_ADDRESS,
     abi: MUSDC_TRANSFER_ABI,
