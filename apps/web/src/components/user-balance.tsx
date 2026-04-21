@@ -56,7 +56,6 @@ export function UserBalance({ refetchTrigger }: { refetchTrigger?: number } = {}
         <div className="space-y-2 pt-2 border-t">
           <BalanceDisplay address={address} symbol="CELO" token={undefined} refetchTrigger={refetchTrigger} />
           <BalanceDisplay address={address} token={CUSD_ADDRESS as `0x${string}`} symbol="cUSD" refetchTrigger={refetchTrigger} />
-          <BalanceDisplay address={address} token={USDC_ADDRESS} symbol="cUSD" refetchTrigger={refetchTrigger} />
           <BalanceDisplay address={address} token={USDT_ADDRESS} symbol="USDT" refetchTrigger={refetchTrigger} />
         </div>
       </CardContent>
