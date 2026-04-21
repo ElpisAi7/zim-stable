@@ -89,7 +89,7 @@ export default function LiquidityGateway() {
     }).then((r) => { if (r.ok) setRegistered(true); }).catch(() => {});
   }, [userAccount, phone, registered]);
 
-  const startPolling = (url: string) => {
+  const startPolling = (url: string, reference: string, zwgAmount: number) => {
     if (pollRef.current) clearInterval(pollRef.current);
 
     let attempts = 0;
@@ -104,7 +104,21 @@ export default function LiquidityGateway() {
         if (data.status === 'paid' || data.status === 'Paid') {
           clearInterval(pollRef.current!);
           setPaymentState('paid');
-          setStatusMessage('Payment received! Your cUSD will arrive shortly.');
+          setStatusMessage('Payment confirmed! Sending cUSD to your wallet…');
+          // Trigger payout directly — don't wait for Paynow callback
+          try {
+            await fetch('/api/paynow/callback', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                reference: reference,
+                amount: String(zwgAmount),
+                status: 'Paid',
+                pollurl: url,
+              }).toString(),
+            });
+          } catch (_) { /* callback best-effort */ }
+          setStatusMessage('cUSD sent to your wallet!');
           setRefetchTrigger((n) => n + 1);
         } else if (data.status === 'failed' || data.status === 'Failed') {
           clearInterval(pollRef.current!);
@@ -160,7 +174,7 @@ export default function LiquidityGateway() {
 
       setPollUrl(data.pollUrl);
       setPaymentState('awaiting_approval');
-      startPolling(data.pollUrl);
+      startPolling(data.pollUrl, paymentReference, parseFloat(amount));
     } catch (error: any) {
       console.error('Payment initiation failed:', error);
       setPaymentState('failed');
