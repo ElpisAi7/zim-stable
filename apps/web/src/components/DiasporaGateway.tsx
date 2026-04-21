@@ -26,11 +26,11 @@ const ERC20_ABI = [
   },
 ] as const;
 
-type Token = 'mUSDC' | 'cUSD';
+type Token = 'USDC' | 'cUSD';
 type Mode = 'send' | 'receive';
 
 const TOKEN_INFO: Record<Token, { address: `0x${string}`; decimals: number; label: string }> = {
-  mUSDC: { address: USDC_ADDRESS, decimals: 18, label: 'Mock USDC' },
+  USDC: { address: USDC_ADDRESS, decimals: 6, label: 'USDC' },
   cUSD: { address: CUSD_ADDRESS, decimals: 18, label: 'cUSD' },
 };
 

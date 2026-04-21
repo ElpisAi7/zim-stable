@@ -4,7 +4,7 @@ import React from "react";
 import { useAccount, useBalance } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const MUSDC_ADDRESS = "0x6473f8816d7380d140ff289bf5c5c147048fb252";
+const CUSD_ADDRESS = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
 const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
 
@@ -55,7 +55,7 @@ export function UserBalance({ refetchTrigger }: { refetchTrigger?: number } = {}
       <CardContent className="space-y-4">
         <div className="space-y-2 pt-2 border-t">
           <BalanceDisplay address={address} symbol="CELO" token={undefined} refetchTrigger={refetchTrigger} />
-          <BalanceDisplay address={address} token={MUSDC_ADDRESS as `0x${string}`} symbol="mUSDC" refetchTrigger={refetchTrigger} />
+          <BalanceDisplay address={address} token={CUSD_ADDRESS as `0x${string}`} symbol="cUSD" refetchTrigger={refetchTrigger} />
           <BalanceDisplay address={address} token={USDC_ADDRESS} symbol="USDC" refetchTrigger={refetchTrigger} />
           <BalanceDisplay address={address} token={USDT_ADDRESS} symbol="USDT" refetchTrigger={refetchTrigger} />
         </div>

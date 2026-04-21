@@ -41,7 +41,7 @@ export default function LiquidityGateway() {
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('ecocash');
-  const [receiveToken, setReceiveToken] = useState('mUSDC');
+  const [receiveToken, setReceiveToken] = useState('cUSD');
   const [paymentState, setPaymentState] = useState<PaymentState>('idle');
   const [pollUrl, setPollUrl] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -104,7 +104,7 @@ export default function LiquidityGateway() {
         if (data.status === 'paid' || data.status === 'Paid') {
           clearInterval(pollRef.current!);
           setPaymentState('paid');
-          setStatusMessage('Payment received! Your mUSDC will arrive shortly.');
+          setStatusMessage('Payment received! Your cUSD will arrive shortly.');
           setRefetchTrigger((n) => n + 1);
         } else if (data.status === 'failed' || data.status === 'Failed') {
           clearInterval(pollRef.current!);
@@ -180,7 +180,7 @@ export default function LiquidityGateway() {
   const handleSell = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userAccount) { alert('Please connect your wallet first'); return; }
-    if (!sellAmount || parseFloat(sellAmount) <= 0) { alert('Enter a valid mUSDC amount'); return; }
+    if (!sellAmount || parseFloat(sellAmount) <= 0) { alert('Enter a valid cUSD amount'); return; }
     if (!sellPhone.match(/^\+2637\d{8}$/)) { alert('Enter a valid Zimbabwean mobile number (e.g. +263771234567)'); return; }
 
     const amountUnits = parseUnits(sellAmount, 18);
@@ -188,7 +188,7 @@ export default function LiquidityGateway() {
     try {
       // Step 1: Approve escrow to spend cUSD
       setSellState('approving');
-      setSellMessage('Step 1/2: Approve mUSDC spend in your wallet…');
+      setSellMessage('Step 1/2: Approve cUSD spend in your wallet…');
       const approveTxHash = await approveAsync({
         address: CUSD_ADDRESS,
         abi: ERC20_ABI,
@@ -198,7 +198,7 @@ export default function LiquidityGateway() {
 
       // Step 2: Deposit into escrow
       setSellState('depositing');
-      setSellMessage('Step 2/2: Lock mUSDC in escrow…');
+      setSellMessage('Step 2/2: Lock cUSD in escrow…');
       const depositTxHash = await depositAsync({
         address: ZIM_ESCROW_ADDRESS,
         abi: ZIM_ESCROW_ABI,
@@ -402,7 +402,7 @@ export default function LiquidityGateway() {
             {sellState === 'idle' && (
               <form onSubmit={handleSell} className="space-y-5">
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">mUSDC amount to sell</label>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">cUSD amount to sell</label>
                   <input
                     type="number"
                     min="0"
@@ -415,11 +415,11 @@ export default function LiquidityGateway() {
                   />
                   {cusdBalance && (
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Available: {parseFloat(cusdBalance.formatted).toFixed(4)} mUSDC
+                      Available: {parseFloat(cusdBalance.formatted).toFixed(4)} cUSD
                     </p>
                   )}
                   {sellAmount && parseFloat(sellAmount) > parseFloat(cusdBalance?.formatted || '0') && (
-                    <p className="text-xs text-red-500">Insufficient mUSDC balance</p>
+                    <p className="text-xs text-red-500">Insufficient cUSD balance</p>
                   )}
                 </div>
 
@@ -447,7 +447,7 @@ export default function LiquidityGateway() {
 
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
                   <p className="text-xs text-amber-800 dark:text-amber-200">
-                    ⚠️ This locks your mUSDC in a smart contract escrow on Celo. ZWG is released to your mobile money after on-chain confirmation. Requires two wallet signatures (approve + deposit).
+                    ⚠️ This locks your cUSD in a smart contract escrow on Celo. ZWG is released to your mobile money after on-chain confirmation. Requires two wallet signatures (approve + deposit).
                   </p>
                 </div>
 
@@ -460,7 +460,7 @@ export default function LiquidityGateway() {
                       : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-500 cursor-not-allowed'
                   }`}
                 >
-                  💸 Sell {sellAmount || '0'} mUSDC → ZWG
+                  💸 Sell {sellAmount || '0'} cUSD → ZWG
                 </button>
               </form>
             )}
@@ -555,7 +555,7 @@ export default function LiquidityGateway() {
               disabled={!userAccount}
               className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="mUSDC">mUSDC – Mock USDC (Celo Sepolia testnet)</option>
+              <option value="cUSD">cUSD – Celo Dollar (Celo Mainnet)</option>
             </select>
           </div>
 

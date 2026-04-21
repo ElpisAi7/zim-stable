@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     try {
       const balance = await getCusdBalance(wallet);
       const shortWallet = `${wallet.slice(0, 8)}...${wallet.slice(-4)}`;
-      return end(`Wallet: ${shortWallet}\n\nmUSDC Balance:\n${balance} mUSDC`);
+      return end(`Wallet: ${shortWallet}\n\ncUSD Balance:\n${balance} cUSD`);
     } catch {
       return end(`Could not fetch balance. Please try again later.`);
     }
