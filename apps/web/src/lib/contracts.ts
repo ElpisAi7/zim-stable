@@ -1,5 +1,6 @@
 // ZimEscrow contract configuration
-export const ZIM_ESCROW_ADDRESS = "0xcdd65ade9518dc1cc9ca19f40f1905f3aacd10cc" as const;
+export const ZIM_ESCROW_ADDRESS = "0xeeec69f320a1a555c3ae4214d2816ebb1ac2d3aa" as const; // Celo Mainnet
+export const ZIM_ESCROW_ADDRESS_ALFAJORES = "0x33065c31819ed17e30a8d20cbd8912b90ff95b7d" as const; // Alfajores (kept for reference)
 
 // Mock USDC for testing (deploy with: cd apps/contracts && npx hardhat run scripts/deploy-mock-usdc.ts --network celo-sepolia)
 export const TEST_USDC_ADDRESS = "0x6473f8816d7380d140ff289bf5c5c147048fb252" as const;
@@ -487,9 +488,9 @@ export const PRICE_ORACLE_ABI = [
   },
 ] as const;
 
-// Common token addresses on Celo Sepolia
+// Token addresses on Celo Mainnet
 export const TOKEN_ADDRESSES = {
-  cUSD: "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1", // cUSD on Celo Sepolia
-  USDC: TEST_USDC_ADDRESS, // Use deployed MockUSDC for testing
-  USDT: "0x617f3112bf5ad0e7e80e5700fbccef4ad26f0447", // USDT on Celo Sepolia
+  cUSD: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+  USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+  USDT: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
 } as const;

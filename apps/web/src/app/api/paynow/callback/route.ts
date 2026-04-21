@@ -3,12 +3,10 @@ import axios from 'axios';
 import { getWallet } from '@/lib/wallet-store';
 import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { celoAlfajores } from 'viem/chains';
+import { celo } from 'viem/chains';
 
-// Mock USDC on Celo Sepolia
-// Account 2 (ADMIN_PRIVATE_KEY) = liquidity wallet holding 150 mUSDC
-// It transfers to the buyer (Account 3 = end user)
-const MUSDC_ADDRESS = '0x6473f8816d7380d140ff289bf5c5c147048fb252' as const;
+// cUSD on Celo Mainnet
+const MUSDC_ADDRESS = '0x765DE816845861e75A25fCA122bb6898B8B1282a' as const;
 const ZWG_TO_USD = 0.015; // ZWG → mUSDC rate (replaces Yellow Card until API is ready)
 
 const MUSDC_TRANSFER_ABI = [
@@ -30,7 +28,7 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   if (!rawKey) throw new Error('ADMIN_PRIVATE_KEY not set');
   const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
-  const client = createWalletClient({ account, chain: celoAlfajores, transport: http('https://alfajores-forno.celo-testnet.org') });
+  const client = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
   const usdcAmount = zwgAmount * ZWG_TO_USD;
   const amountWei = parseUnits(usdcAmount.toFixed(6), 18);
   const hash = await client.writeContract({

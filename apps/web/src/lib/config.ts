@@ -51,8 +51,8 @@ export function getConfig(): IntegrationConfig {
       region: (process.env.HOSTING_AFRICA_REGION as any) || 'zim',
     },
     celo: {
-      rpcUrl: process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://alfajores-forno.celo-testnet.org',
-      network: process.env.NEXT_PUBLIC_CELO_NETWORK || 'celo-sepolia',
+      rpcUrl: process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://forno.celo.org',
+      network: process.env.NEXT_PUBLIC_CELO_NETWORK || 'celo',
     },
     app: {
       url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',

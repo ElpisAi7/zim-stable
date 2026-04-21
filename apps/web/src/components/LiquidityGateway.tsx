@@ -7,7 +7,7 @@ import { Loader2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { UserBalance } from './user-balance';
 import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ABI } from '@/lib/contracts';
 
-const CUSD_ADDRESS = '0x6473f8816d7380d140ff289bf5c5c147048fb252' as const; // MockUSDC on Celo Sepolia
+const CUSD_ADDRESS = '0x765DE816845861e75A25fCA122bb6898B8B1282a' as const; // cUSD on Celo Mainnet
 // ERC-20 approve ABI (minimal)
 const ERC20_ABI = [
   {

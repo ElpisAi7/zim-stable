@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClient, http } from 'viem';
-import { celoSepolia } from 'viem/chains';
+import { celoAlfajores } from 'viem/chains';
 import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ABI } from '@/lib/contracts';
 
 const client = createPublicClient({
-  chain: celoSepolia,
-  transport: http(),
+  chain: celoAlfajores,
+  transport: http('https://alfajores-forno.celo-testnet.org'),
 });
 
 // Utility to convert BigInt to string in nested objects
