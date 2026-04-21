@@ -262,13 +262,8 @@ export default function LiquidityGateway() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Release failed');
 
-      if (data.needsWalletRelease) {
-        setSellState('done');
-        setSellMessage(data.message);
-      } else {
-        setSellState('done');
-        setSellMessage(`✅ ${data.message}`);
-      }
+      setSellState('done');
+      setSellMessage(`✅ ${data.message}`);
       setRefetchTrigger((n) => n + 1);
     } catch (err: any) {
       console.error('[Sell] Error:', err);

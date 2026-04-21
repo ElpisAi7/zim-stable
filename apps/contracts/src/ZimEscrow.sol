@@ -278,6 +278,32 @@ contract ZimEscrow {
         
         emit DisputeResolved(_escrowId, _recipient, escrow.amount);
     }
+
+    /**
+     * @dev Admin releases escrow funds to seller after verifying fiat payment
+     *      Used for automated sell/off-ramp: server sends EcoCash then calls this
+     * @param _escrowId The escrow ID to release
+     */
+    function adminRelease(uint256 _escrowId)
+        external
+        onlyAdmin
+        onlyValidEscrow(_escrowId)
+        nonReentrant
+    {
+        Escrow storage escrow = escrows[_escrowId];
+
+        require(
+            escrow.status == EscrowStatus.Active || escrow.status == EscrowStatus.PaymentSignaled,
+            "Escrow cannot be released"
+        );
+
+        escrow.status = EscrowStatus.FundsReleased;
+
+        // Return tokens to seller (liquidity wallet in the off-ramp flow)
+        IERC20(escrow.token).transfer(escrow.seller, escrow.amount);
+
+        emit FundsReleased(_escrowId, escrow.seller, escrow.amount);
+    }
     
     // ============ View Functions ============
     

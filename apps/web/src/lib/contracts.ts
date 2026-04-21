@@ -1,5 +1,5 @@
 // ZimEscrow contract configuration
-export const ZIM_ESCROW_ADDRESS = "0xeeec69f320a1a555c3ae4214d2816ebb1ac2d3aa" as const; // Celo Mainnet
+export const ZIM_ESCROW_ADDRESS = "0x433154056a8dbbdb81d278a421754833044ce487" as const; // Celo Mainnet (v2 — with adminRelease)
 export const ZIM_ESCROW_ADDRESS_ALFAJORES = "0x33065c31819ed17e30a8d20cbd8912b90ff95b7d" as const; // Alfajores (kept for reference)
 
 // Mock USDC for testing (deploy with: cd apps/contracts && npx hardhat run scripts/deploy-mock-usdc.ts --network celo-sepolia)
@@ -183,6 +183,19 @@ export const ZIM_ESCROW_ABI = [
       },
     ],
     name: "cancelEscrow",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_escrowId",
+        type: "uint256",
+      },
+    ],
+    name: "adminRelease",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

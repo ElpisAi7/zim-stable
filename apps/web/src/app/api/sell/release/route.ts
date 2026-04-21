@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createWalletClient, http, createPublicClient } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { createWalletClient, http, createPublicClient } from 'viem';import { privateKeyToAccount } from 'viem/accounts';
 import { celo } from 'viem/chains';
 
 /**
@@ -20,39 +19,16 @@ import { celo } from 'viem/chains';
  *   - txHash     : deposit tx hash (for logging)
  */
 
-const ZIM_ESCROW_ADDRESS = '0xeeec69f320a1a555c3ae4214d2816ebb1ac2d3aa' as const;
+const ZIM_ESCROW_ADDRESS = '0x433154056a8dbbdb81d278a421754833044ce487' as const;
 const USD_TO_ZWG = 1 / 0.015; // 1 ZWG = 0.015 USD → 1 USD = 66.67 ZWG
 
 const RELEASE_ABI = [
   {
-    name: 'releaseFunds',
+    name: 'adminRelease',
     type: 'function' as const,
     stateMutability: 'nonpayable' as const,
     inputs: [{ name: '_escrowId', type: 'uint256' }],
     outputs: [],
-  },
-  {
-    name: 'signalPayment',
-    type: 'function' as const,
-    stateMutability: 'nonpayable' as const,
-    inputs: [{ name: '_escrowId', type: 'uint256' }],
-    outputs: [],
-  },
-  {
-    name: 'escrows',
-    type: 'function' as const,
-    stateMutability: 'view' as const,
-    inputs: [{ name: '', type: 'uint256' }],
-    outputs: [
-      { name: 'seller', type: 'address' },
-      { name: 'buyer', type: 'address' },
-      { name: 'token', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-      { name: 'sellerPhoneNumber', type: 'string' },
-      { name: 'status', type: 'uint8' },
-      { name: 'createdAt', type: 'uint256' },
-      { name: 'paymentSignaledAt', type: 'uint256' },
-    ],
   },
 ] as const;
 
@@ -121,47 +97,17 @@ async function releaseFundsOnChain(escrowId: bigint, sellerAddress: string): Pro
   const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
 
-  const publicClient = createPublicClient({ chain: celo, transport: http('https://forno.celo.org') });
   const walletClient = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
+  const publicClient = createPublicClient({ chain: celo, transport: http('https://forno.celo.org') });
 
-  // Admin signals payment on behalf of seller (sets buyer = admin, status = PaymentSignaled)
-  const escrow = await publicClient.readContract({
+  const hash = await walletClient.writeContract({
     address: ZIM_ESCROW_ADDRESS,
     abi: RELEASE_ABI,
-    functionName: 'escrows',
+    functionName: 'adminRelease',
     args: [escrowId],
-  }) as readonly [string, string, string, bigint, string, number, bigint, bigint];
-
-  const status = escrow[5]; // EscrowStatus enum
-  if (status === 0) {
-    // Active → signal payment first
-    const signalHash = await walletClient.writeContract({
-      address: ZIM_ESCROW_ADDRESS,
-      abi: RELEASE_ABI,
-      functionName: 'signalPayment',
-      args: [escrowId],
-    });
-    await publicClient.waitForTransactionReceipt({ hash: signalHash });
-  }
-
-  // The seller must release — but here seller = user's wallet which we don't control.
-  // Instead, the admin calls releaseFunds only if admin is the seller.
-  // In the sell flow the USER is the seller. So we use the escrow's signalPayment + 
-  // the user called releaseFunds from the frontend. 
-  // For fully automated release we need admin to be able to release — check if admin is seller.
-  const sellerOnChain = escrow[0] as string;
-  if (sellerOnChain.toLowerCase() === account.address.toLowerCase()) {
-    const hash = await walletClient.writeContract({
-      address: ZIM_ESCROW_ADDRESS,
-      abi: RELEASE_ABI,
-      functionName: 'releaseFunds',
-      args: [escrowId],
-    });
-    return hash;
-  }
-
-  // Seller is the user — return a signal that they need to confirm release in their wallet
-  return 'NEEDS_USER_RELEASE';
+  });
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
 }
 
 export async function POST(request: NextRequest) {
@@ -203,16 +149,6 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Release USDC from escrow
     const releaseResult = await releaseFundsOnChain(BigInt(escrowId), '');
-
-    if (releaseResult === 'NEEDS_USER_RELEASE') {
-      // EcoCash was sent — now user needs to confirm release in their wallet
-      return NextResponse.json({
-        success: true,
-        ecocashPaid: true,
-        needsWalletRelease: true,
-        message: 'EcoCash sent! Please confirm the release in your wallet to complete the transaction.',
-      });
-    }
 
     return NextResponse.json({
       success: true,
