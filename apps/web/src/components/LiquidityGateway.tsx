@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseUnits } from 'viem';
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { parseUnits, decodeEventLog } from 'viem';
 import { Loader2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { UserBalance } from './user-balance';
 import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ABI } from '@/lib/contracts';
@@ -68,6 +68,7 @@ export default function LiquidityGateway() {
 
   const { writeContractAsync: approveAsync } = useWriteContract();
   const { writeContractAsync: depositAsync } = useWriteContract();
+  const publicClient = usePublicClient();
 
   const [exchangeRate] = useState<ExchangeRate>({
     zwlToUsd: 0.015,
@@ -227,26 +228,47 @@ export default function LiquidityGateway() {
         args: [CUSD_ADDRESS, amountUnits, sellPhone],
       });
 
-      // Step 3: Notify backend
+      // Step 3: Extract escrow ID from transaction receipt
       setSellState('recording');
-      setSellMessage('Recording sell request…');
-      const res = await fetch('/api/sell/initiate', {
+      setSellMessage('Waiting for deposit confirmation…');
+      let escrowId = 0;
+      if (publicClient) {
+        try {
+          const receipt = await publicClient.waitForTransactionReceipt({ hash: depositTxHash });
+          for (const log of receipt.logs) {
+            try {
+              const decoded = decodeEventLog({ abi: ZIM_ESCROW_ABI, data: log.data, topics: log.topics });
+              if (decoded.eventName === 'EscrowCreated') {
+                escrowId = Number((decoded.args as any).escrowId);
+                break;
+              }
+            } catch { /* not this event */ }
+          }
+        } catch { /* use 0 as fallback */ }
+      }
+
+      // Step 4: Initiate EcoCash payout and release escrow (server-side polling)
+      setSellMessage('Sending ZWG via EcoCash to your phone…');
+      const res = await fetch('/api/sell/release', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          escrowId: 0, // will be read from event log by admin; placeholder
+          escrowId,
           txHash: depositTxHash,
-          wallet: userAccount,
           phone: sellPhone,
-          amountCusd: sellAmount,
+          amountUsdc: sellAmount,
         }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Backend error');
+      if (!res.ok) throw new Error(data.error || 'Release failed');
 
-      setSellId(data.sellId);
-      setSellState('done');
-      setSellMessage(data.message);
+      if (data.needsWalletRelease) {
+        setSellState('done');
+        setSellMessage(data.message);
+      } else {
+        setSellState('done');
+        setSellMessage(`✅ ${data.message}`);
+      }
       setRefetchTrigger((n) => n + 1);
     } catch (err: any) {
       console.error('[Sell] Error:', err);
