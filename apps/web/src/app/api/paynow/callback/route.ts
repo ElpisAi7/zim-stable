@@ -171,11 +171,12 @@ export async function POST(request: NextRequest) {
           message: 'Payment received. cUSD sent to your Celo wallet.',
         });
       } catch (payoutError) {
-        console.error('[Payout] cUSD transfer failed:', payoutError);
+        const errMsg = payoutError instanceof Error ? payoutError.message : String(payoutError);
+        console.error('[Payout] cUSD transfer failed:', errMsg, payoutError);
         transaction.status = 'failed';
         transactionLog.set(body.reference, transaction);
         return NextResponse.json(
-          { confirmed: true, reference: body.reference, error: 'Payout failed. Please contact support.' },
+          { confirmed: true, reference: body.reference, error: 'Payout failed: ' + errMsg },
           { status: 500 }
         );
       }

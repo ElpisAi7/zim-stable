@@ -107,7 +107,7 @@ export default function LiquidityGateway() {
           setStatusMessage('Payment confirmed! Sending cUSD to your wallet…');
           // Trigger payout directly — don't wait for Paynow callback
           try {
-            await fetch('/api/paynow/callback', {
+            const cbRes = await fetch('/api/paynow/callback', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               body: new URLSearchParams({
@@ -117,8 +117,15 @@ export default function LiquidityGateway() {
                 pollurl: url,
               }).toString(),
             });
-          } catch (_) { /* callback best-effort */ }
-          setStatusMessage('cUSD sent to your wallet!');
+            const cbData = await cbRes.json().catch(() => ({}));
+            if (!cbRes.ok) {
+              setStatusMessage(`Payout error: ${cbData.error || cbRes.status}`);
+            } else {
+              setStatusMessage('cUSD sent to your wallet!');
+            }
+          } catch (e) {
+            setStatusMessage('cUSD payment confirmed, payout pending.');
+          }
           setRefetchTrigger((n) => n + 1);
         } else if (data.status === 'failed' || data.status === 'Failed') {
           clearInterval(pollRef.current!);
