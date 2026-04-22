@@ -22,6 +22,37 @@ const MUSDC_TRANSFER_ABI = [
   },
 ] as const;
 
+const payoutLocks = new Map<string, Promise<void>>();
+
+function isRetryableNonceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('nonce too low') ||
+    lower.includes('already known') ||
+    lower.includes('lower than the current nonce')
+  );
+}
+
+async function withAccountLock<T>(accountAddress: string, fn: () => Promise<T>): Promise<T> {
+  const previous = payoutLocks.get(accountAddress) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  payoutLocks.set(accountAddress, previous.then(() => current));
+
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (payoutLocks.get(accountAddress) === current) {
+      payoutLocks.delete(accountAddress);
+    }
+  }
+}
+
 // Liquidity wallet (Account 2) transfers mUSDC from its own balance to the buyer
 async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> {
   const rawKey = process.env.ADMIN_PRIVATE_KEY;
@@ -31,17 +62,35 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   const rpcUrl = 'https://forno.celo.org';
   const client = createWalletClient({ account, chain: celo, transport: http(rpcUrl) });
   const publicClient = createPublicClient({ chain: celo, transport: http(rpcUrl) });
-  const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' });
-  const usdcAmount = zwgAmount * ZWG_TO_USD;
-  const amountWei = parseUnits(usdcAmount.toFixed(6), 18); // cUSD has 18 decimals
-  const hash = await client.writeContract({
-    address: MUSDC_ADDRESS,
-    abi: MUSDC_TRANSFER_ABI,
-    functionName: 'transfer',
-    args: [toAddress as `0x${string}`, amountWei],
-    nonce,
+
+  return withAccountLock(account.address, async () => {
+    const usdcAmount = zwgAmount * ZWG_TO_USD;
+    const amountWei = parseUnits(usdcAmount.toFixed(6), 18); // cUSD has 18 decimals
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' });
+      try {
+        const hash = await client.writeContract({
+          address: MUSDC_ADDRESS,
+          abi: MUSDC_TRANSFER_ABI,
+          functionName: 'transfer',
+          args: [toAddress as `0x${string}`, amountWei],
+          nonce,
+        });
+        return hash;
+      } catch (error) {
+        if (!isRetryableNonceError(error) || attempt === 2) {
+          throw error;
+        }
+        console.warn('[Payout] Nonce conflict, retrying payout send...', {
+          attempt: attempt + 1,
+          account: account.address,
+        });
+      }
+    }
+
+    throw new Error('Payout failed after nonce retries');
   });
-  return hash;
 }
 
 /**
@@ -141,12 +190,30 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const existingTransaction = transactionLog.get(body.reference);
+      if (existingTransaction?.status === 'completed' && existingTransaction.yellowCardTxId) {
+        return NextResponse.json({
+          confirmed: true,
+          reference: body.reference,
+          txHash: existingTransaction.yellowCardTxId,
+          message: 'Payment already processed. cUSD already sent.',
+        });
+      }
+
+      if (existingTransaction?.status === 'processing') {
+        return NextResponse.json({
+          confirmed: true,
+          reference: body.reference,
+          message: 'Payment is already being processed.',
+        });
+      }
+
       // Create transaction record
       const transaction: LiquidityTransaction = {
         paymentReference: body.reference,
         amount: body.amount,
         currency: 'ZWL',
-        status: 'paid',
+        status: 'processing',
         celoWalletAddress: walletAddress,
         timestamp: new Date(),
       };
