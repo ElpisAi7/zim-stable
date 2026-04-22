@@ -34,6 +34,14 @@ function isRetryableNonceError(error: unknown): boolean {
   );
 }
 
+function getSuggestedNextNonce(error: unknown): number | null {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/next nonce\s+(\d+)/i);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function withAccountLock<T>(accountAddress: string, fn: () => Promise<T>): Promise<T> {
   const previous = payoutLocks.get(accountAddress) ?? Promise.resolve();
   let release!: () => void;
@@ -67,8 +75,11 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
     const usdcAmount = zwgAmount * ZWG_TO_USD;
     const amountWei = parseUnits(usdcAmount.toFixed(6), 18); // cUSD has 18 decimals
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' });
+    let forcedNonce: number | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const chainNonce = Number(await publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' }));
+      const nonce: number = forcedNonce === null ? chainNonce : Math.max(chainNonce, forcedNonce);
       try {
         const hash = await client.writeContract({
           address: MUSDC_ADDRESS,
@@ -79,12 +90,17 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
         });
         return hash;
       } catch (error) {
-        if (!isRetryableNonceError(error) || attempt === 2) {
+        if (!isRetryableNonceError(error) || attempt === 4) {
           throw error;
         }
+        const suggestedNonce = getSuggestedNextNonce(error);
+        forcedNonce = suggestedNonce ?? nonce + 1;
         console.warn('[Payout] Nonce conflict, retrying payout send...', {
           attempt: attempt + 1,
           account: account.address,
+          chainNonce,
+          usedNonce: nonce,
+          forcedNonce,
         });
       }
     }
