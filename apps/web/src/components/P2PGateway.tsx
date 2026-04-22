@@ -8,6 +8,20 @@ import { Loader2, Settings, X, Globe } from "lucide-react";
 
 const CUSD_FEE_CURRENCY = TOKEN_ADDRESSES.cUSD as `0x${string}`;
 
+function formatEscrowError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes('insufficient funds for gas') &&
+    lower.includes('feecurrency 0xbf1441ea57f43f35f713431001f35742c88071c7'.toLowerCase())
+  ) {
+    return 'MiniPay is using a fee token with zero balance. In MiniPay settings, switch transaction fee token to cUSD or CELO, then retry.';
+  }
+
+  return raw;
+}
+
 export default function P2PGateway() {
   const { address: userAccount } = useAccount();
   
@@ -85,7 +99,7 @@ export default function P2PGateway() {
   });
 
   // Wagmi contract interaction hooks
-  const { writeContract: writeEscrow, isPending: isPendingEscrow, data: escrowHash } = useWriteContract();
+  const { writeContract: writeEscrow, isPending: isPendingEscrow, data: escrowHash, error: escrowError, isError: isEscrowError } = useWriteContract();
   const { isLoading: isConfirmingEscrow, isSuccess: isSuccessEscrow } = useWaitForTransactionReceipt({
     hash: escrowHash,
   });
@@ -100,7 +114,7 @@ export default function P2PGateway() {
     hash: signalHash,
   });
 
-  const { writeContract: writeApprove, isPending: isPendingApprove, data: approveHash } = useWriteContract();
+  const { writeContract: writeApprove, isPending: isPendingApprove, data: approveHash, error: approveError, isError: isApproveError } = useWriteContract();
   const { isLoading: isConfirmingApprove, isSuccess: isSuccessApprove } = useWaitForTransactionReceipt({
     hash: approveHash,
   });
@@ -267,6 +281,19 @@ export default function P2PGateway() {
 
   // Effect to reset on transaction failure
   useEffect(() => {
+    if (escrowStep === 'approving' && isApproveError && approveError) {
+      alert(formatEscrowError(approveError));
+      setEscrowStep('idle');
+      setPendingDepositInfo(null);
+      return;
+    }
+
+    if (escrowStep === 'depositing' && isEscrowError && escrowError) {
+      alert(formatEscrowError(escrowError));
+      setEscrowStep('idle');
+      return;
+    }
+
     if (escrowStep === 'approving' && !isPendingApprove && !isConfirmingApprove && !isSuccessApprove && approveHash) {
       // Approval failed
       alert('Approval failed. Please retry.');
@@ -277,7 +304,21 @@ export default function P2PGateway() {
       alert('Escrow deposit failed. Please retry.');
       setEscrowStep('idle');
     }
-  }, [escrowStep, isPendingApprove, isConfirmingApprove, isSuccessApprove, approveHash, isPendingEscrow, isConfirmingEscrow, isSuccessEscrow, escrowHash]);
+  }, [
+    escrowStep,
+    isApproveError,
+    approveError,
+    isEscrowError,
+    escrowError,
+    isPendingApprove,
+    isConfirmingApprove,
+    isSuccessApprove,
+    approveHash,
+    isPendingEscrow,
+    isConfirmingEscrow,
+    isSuccessEscrow,
+    escrowHash,
+  ]);
 
   // Watch for escrow events to refresh data
   useWatchContractEvent({

@@ -33,6 +33,20 @@ const METHOD_LABELS: Record<PaymentMethod, string> = {
   innbucks: 'InnBucks',
 };
 
+function formatSellError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes('insufficient funds for gas') &&
+    lower.includes('feecurrency 0xbf1441ea57f43f35f713431001f35742c88071c7'.toLowerCase())
+  ) {
+    return 'MiniPay is using a fee token with zero balance. In MiniPay settings, switch transaction fee token to cUSD or CELO, then retry.';
+  }
+
+  return raw;
+}
+
 export default function LiquidityGateway() {
   const { address: userAccount } = useAccount();
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
@@ -272,7 +286,7 @@ export default function LiquidityGateway() {
     } catch (err: any) {
       console.error('[Sell] Error:', err);
       setSellState('failed');
-      setSellMessage(err?.shortMessage || err?.message || 'Transaction failed. Please try again.');
+      setSellMessage(formatSellError(err?.shortMessage || err?.message || err));
     }
   };
 
