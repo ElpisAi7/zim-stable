@@ -97,14 +97,17 @@ async function releaseFundsOnChain(escrowId: bigint, sellerAddress: string): Pro
   const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
 
-  const walletClient = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
-  const publicClient = createPublicClient({ chain: celo, transport: http('https://forno.celo.org') });
+  const rpcUrl = 'https://forno.celo.org';
+  const walletClient = createWalletClient({ account, chain: celo, transport: http(rpcUrl) });
+  const publicClient = createPublicClient({ chain: celo, transport: http(rpcUrl) });
+  const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' });
 
   const hash = await walletClient.writeContract({
     address: ZIM_ESCROW_ADDRESS,
     abi: RELEASE_ABI,
     functionName: 'adminRelease',
     args: [escrowId],
+    nonce,
   });
   await publicClient.waitForTransactionReceipt({ hash });
   return hash;

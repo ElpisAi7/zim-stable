@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getWallet } from '@/lib/wallet-store';
-import { createWalletClient, http, parseUnits } from 'viem';
+import { createWalletClient, createPublicClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { celo } from 'viem/chains';
 
@@ -28,7 +28,10 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   if (!rawKey) throw new Error('ADMIN_PRIVATE_KEY not set');
   const privateKey = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
-  const client = createWalletClient({ account, chain: celo, transport: http('https://forno.celo.org') });
+  const rpcUrl = 'https://forno.celo.org';
+  const client = createWalletClient({ account, chain: celo, transport: http(rpcUrl) });
+  const publicClient = createPublicClient({ chain: celo, transport: http(rpcUrl) });
+  const nonce = await publicClient.getTransactionCount({ address: account.address, blockTag: 'pending' });
   const usdcAmount = zwgAmount * ZWG_TO_USD;
   const amountWei = parseUnits(usdcAmount.toFixed(6), 18); // cUSD has 18 decimals
   const hash = await client.writeContract({
@@ -36,6 +39,7 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
     abi: MUSDC_TRANSFER_ABI,
     functionName: 'transfer',
     args: [toAddress as `0x${string}`, amountWei],
+    nonce,
   });
   return hash;
 }

@@ -216,7 +216,9 @@ export default function LiquidityGateway() {
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [ZIM_ESCROW_ADDRESS, amountUnits],
-      });
+        // Pay gas in cUSD so the user doesn't need native CELO
+        feeCurrency: CUSD_ADDRESS,
+      } as any);
 
       // Step 2: Deposit into escrow
       setSellState('depositing');
@@ -226,7 +228,9 @@ export default function LiquidityGateway() {
         abi: ZIM_ESCROW_ABI,
         functionName: 'depositEscrow',
         args: [CUSD_ADDRESS, amountUnits, sellPhone],
-      });
+        // Pay gas in cUSD so the user doesn't need native CELO
+        feeCurrency: CUSD_ADDRESS,
+      } as any);
 
       // Step 3: Extract escrow ID from transaction receipt
       setSellState('recording');
