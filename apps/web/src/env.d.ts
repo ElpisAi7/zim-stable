@@ -2,7 +2,8 @@ declare namespace NodeJS {
   interface ProcessEnv {
     // Paynow
     PAYNOW_INTEGRATION_ID?: string;
-    PAYNOW_INTEGRATION_KEY?: striPAYNOW_MERCHANT_EMAIL?: string;
+    PAYNOW_INTEGRATION_KEY?: string;
+    PAYNOW_MERCHANT_EMAIL?: string;
     PAYNOW_API_URL?: string;
     PAYNOW_STATUS_URL?: string;
     PAYNOW_RESULT_URL?: string;
@@ -24,13 +25,17 @@ declare namespace NodeJS {
 
     // App
     NEXT_PUBLIC_APP_URL?: string;
-    NEXT_PUBLIC_APP_ENVIRONMENT?: string;    // Africa's Talking USSD
+    NEXT_PUBLIC_APP_ENVIRONMENT?: string;
+
+    // Africa's Talking USSD
     AT_API_KEY: string;
     AT_USERNAME: string;
     AT_USSD_CODE: string;
+
     // Upstash Redis (wallet store)
     UPSTASH_REDIS_REST_URL: string;
     UPSTASH_REDIS_REST_TOKEN: string;
+
     ADMIN_PRIVATE_KEY?: string;
   }
 }

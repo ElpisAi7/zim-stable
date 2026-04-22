@@ -71,6 +71,7 @@ export default function LiquidityGateway() {
   const [sellId, setSellId] = useState('');
 
   const { data: cusdBalance, refetch: refetchCusd } = useBalance({ address: userAccount, token: CUSD_ADDRESS, query: { refetchInterval: 10_000 } });
+  const { data: celoBalance } = useBalance({ address: userAccount, query: { refetchInterval: 10_000 } });
 
   // Refetch when user returns to tab after USSD/Paynow payment
   React.useEffect(() => {
@@ -221,6 +222,12 @@ export default function LiquidityGateway() {
 
     const amountUnits = parseUnits(sellAmount, 18); // cUSD has 18 decimals
 
+    // Pick fee currency: use cUSD if the wallet has enough cUSD above the sell amount,
+    // otherwise fall back to native CELO. This prevents "fee token has zero balance" errors in MiniPay.
+    const GAS_BUFFER = parseUnits('0.01', 18); // ~0.01 cUSD for gas
+    const cusdSufficient = cusdBalance && cusdBalance.value > amountUnits + GAS_BUFFER;
+    const feeCurrencyOpt = cusdSufficient ? { feeCurrency: CUSD_ADDRESS } : {};
+
     try {
       // Step 1: Approve escrow to spend cUSD
       setSellState('approving');
@@ -230,8 +237,7 @@ export default function LiquidityGateway() {
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [ZIM_ESCROW_ADDRESS, amountUnits],
-        // Pay gas in cUSD so the user doesn't need native CELO
-        feeCurrency: CUSD_ADDRESS,
+        ...feeCurrencyOpt,
       } as any);
 
       // Step 2: Deposit into escrow
@@ -242,8 +248,7 @@ export default function LiquidityGateway() {
         abi: ZIM_ESCROW_ABI,
         functionName: 'depositEscrow',
         args: [CUSD_ADDRESS, amountUnits, sellPhone],
-        // Pay gas in cUSD so the user doesn't need native CELO
-        feeCurrency: CUSD_ADDRESS,
+        ...feeCurrencyOpt,
       } as any);
 
       // Step 3: Extract escrow ID from transaction receipt
