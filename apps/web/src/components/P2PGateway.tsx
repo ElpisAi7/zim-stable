@@ -6,6 +6,8 @@ import { parseUnits, formatUnits } from "viem";
 import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ABI, MOCK_USDC_ABI, TEST_USDC_ADDRESS, PRICE_ORACLE_ADDRESS, PRICE_ORACLE_ABI, TOKEN_ADDRESSES } from "@/lib/contracts";
 import { Loader2, Settings, X, Globe } from "lucide-react";
 
+const CUSD_FEE_CURRENCY = TOKEN_ADDRESSES.cUSD as `0x${string}`;
+
 export default function P2PGateway() {
   const { address: userAccount } = useAccount();
   
@@ -348,7 +350,8 @@ export default function P2PGateway() {
           abi: MOCK_USDC_ABI,
           functionName: "approve",
           args: [ZIM_ESCROW_ADDRESS, amountInWei],
-        });
+          feeCurrency: CUSD_FEE_CURRENCY,
+        } as any);
       } else {
         // Already approved (or retrospectively high allowance); skip approval
         setEscrowStep('depositing');
@@ -371,7 +374,8 @@ export default function P2PGateway() {
       abi: ZIM_ESCROW_ABI,
       functionName: "depositEscrow",
       args: [tokenAddress as `0x${string}`, amountInWei, fullPhoneNumber],
-    });
+      feeCurrency: CUSD_FEE_CURRENCY,
+    } as any);
   };
 
   // Effect to reset step on success
