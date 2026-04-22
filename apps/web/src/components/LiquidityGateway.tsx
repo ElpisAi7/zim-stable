@@ -37,13 +37,12 @@ function formatSellError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   const lower = raw.toLowerCase();
 
-  if (
-    lower.includes('insufficient funds for gas') &&
-    lower.includes('feecurrency 0xbf1441ea57f43f35f713431001f35742c88071c7'.toLowerCase())
-  ) {
-    return 'MiniPay is using a fee token with zero balance. In MiniPay settings, switch transaction fee token to cUSD or CELO, then retry.';
+  if (lower.includes('insufficient funds') || lower.includes('fee token') || lower.includes('feecurrency')) {
+    return 'Not enough cUSD to cover the sell amount + gas fee. Add a small extra cUSD (e.g. 0.02) to your wallet and retry.';
   }
-
+  if (lower.includes('user rejected') || lower.includes('user denied')) {
+    return 'Transaction rejected in wallet.';
+  }
   return raw;
 }
 
@@ -222,14 +221,17 @@ export default function LiquidityGateway() {
 
     const amountUnits = parseUnits(sellAmount, 18); // cUSD has 18 decimals
 
-    // Pick fee currency: use cUSD if the wallet has enough cUSD above the sell amount,
-    // otherwise fall back to native CELO. This prevents "fee token has zero balance" errors in MiniPay.
-    const GAS_BUFFER = parseUnits('0.01', 18); // ~0.01 cUSD for gas
-    const cusdSufficient = cusdBalance && cusdBalance.value > amountUnits + GAS_BUFFER;
-    const feeCurrencyOpt = cusdSufficient ? { feeCurrency: CUSD_ADDRESS } : {};
+    // MiniPay always pays gas in cUSD. Pre-flight: ensure user has sell amount + gas buffer.
+    const GAS_BUFFER = parseUnits('0.02', 18); // 0.02 cUSD covers two tx fees (approve + deposit)
+    if (cusdBalance && cusdBalance.value < amountUnits + GAS_BUFFER) {
+      const needed = (parseFloat(sellAmount) + 0.02).toFixed(2);
+      setSellState('failed');
+      setSellMessage(`Insufficient cUSD. You need at least ${needed} cUSD (sell amount + ~0.02 for gas). Current balance: ${parseFloat(cusdBalance.formatted).toFixed(4)} cUSD.`);
+      return;
+    }
 
     try {
-      // Step 1: Approve escrow to spend cUSD
+      // Step 1: Approve escrow to spend cUSD (gas paid in cUSD — required by MiniPay)
       setSellState('approving');
       setSellMessage('Step 1/2: Approve cUSD spend in your wallet…');
       const approveTxHash = await approveAsync({
@@ -237,10 +239,10 @@ export default function LiquidityGateway() {
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [ZIM_ESCROW_ADDRESS, amountUnits],
-        ...feeCurrencyOpt,
+        feeCurrency: CUSD_ADDRESS,
       } as any);
 
-      // Step 2: Deposit into escrow
+      // Step 2: Deposit into escrow (gas paid in cUSD — required by MiniPay)
       setSellState('depositing');
       setSellMessage('Step 2/2: Lock cUSD in escrow…');
       const depositTxHash = await depositAsync({
@@ -248,7 +250,7 @@ export default function LiquidityGateway() {
         abi: ZIM_ESCROW_ABI,
         functionName: 'depositEscrow',
         args: [CUSD_ADDRESS, amountUnits, sellPhone],
-        ...feeCurrencyOpt,
+        feeCurrency: CUSD_ADDRESS,
       } as any);
 
       // Step 3: Extract escrow ID from transaction receipt
