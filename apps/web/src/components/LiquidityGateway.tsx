@@ -38,8 +38,11 @@ function formatSellError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error);
   const lower = raw.toLowerCase();
 
-  if (lower.includes('insufficient funds') || lower.includes('fee token') || lower.includes('feecurrency')) {
-    return 'Not enough cUSD to cover the sell amount + gas fee. Add a small extra cUSD (e.g. 0.02) to your wallet and retry.';
+  if (lower.includes('fee token with zero balance') || (lower.includes('fee token') && lower.includes('zero balance'))) {
+    return 'MiniPay fee token has zero balance. In MiniPay settings, set fee token to cUSD (or fund the currently selected fee token), then retry.';
+  }
+  if (lower.includes('insufficient funds') || lower.includes('feecurrency')) {
+    return `Transaction failed due to insufficient funds for gas. Wallet error: ${raw}`;
   }
   if (lower.includes('user rejected') || lower.includes('user denied')) {
     return 'Transaction rejected in wallet.';
@@ -298,7 +301,8 @@ export default function LiquidityGateway() {
     } catch (err: any) {
       console.error('[Sell] Error:', err);
       setSellState('failed');
-      setSellMessage(formatSellError(err?.shortMessage || err?.message || err));
+      const balanceForDebug = cusdBalance ? parseFloat(cusdBalance.formatted).toFixed(4) : 'unknown';
+      setSellMessage(`${formatSellError(err?.shortMessage || err?.message || err)} (network ${chainId}, cUSD balance ${balanceForDebug})`);
     }
   };
 
