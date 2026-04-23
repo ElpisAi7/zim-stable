@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { getWallet } from '@/lib/wallet-store';
-import { createWalletClient, createPublicClient, http, parseUnits } from 'viem';
+import { createWalletClient, createPublicClient, http, parseUnits, formatUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { celo } from 'viem/chains';
 
@@ -19,6 +19,16 @@ const MUSDC_TRANSFER_ABI = [
       { name: 'amount', type: 'uint256' },
     ],
     outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
+
+const ERC20_BALANCE_ABI = [
+  {
+    name: 'balanceOf',
+    type: 'function' as const,
+    stateMutability: 'view' as const,
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
   },
 ] as const;
 
@@ -74,6 +84,22 @@ async function mintMusdc(toAddress: string, zwgAmount: number): Promise<string> 
   return withAccountLock(account.address, async () => {
     const usdcAmount = zwgAmount * ZWG_TO_USD;
     const amountWei = parseUnits(usdcAmount.toFixed(6), 18); // cUSD has 18 decimals
+
+    // Preflight liquidity check to return a clear operational error instead of ERC20 revert.
+    const liquidityBalance = await publicClient.readContract({
+      address: MUSDC_ADDRESS,
+      abi: ERC20_BALANCE_ABI,
+      functionName: 'balanceOf',
+      args: [account.address],
+    });
+
+    if (liquidityBalance < amountWei) {
+      const available = Number(formatUnits(liquidityBalance, 18));
+      const required = Number(formatUnits(amountWei, 18));
+      throw new Error(
+        `Liquidity wallet underfunded for payout. Available ${available.toFixed(6)} cUSD, required ${required.toFixed(6)} cUSD.`
+      );
+    }
 
     let forcedNonce: number | null = null;
 

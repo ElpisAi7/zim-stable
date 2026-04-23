@@ -410,18 +410,27 @@ export default function LiquidityGateway() {
   }
 
   if (paymentState === 'paid') {
+    const payoutFailed = statusMessage.toLowerCase().includes('payout error');
     return (
       <div className="flex justify-center items-center min-h-screen p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-8 w-full max-w-md border border-slate-200 dark:border-slate-700 text-center space-y-6">
           <div className="flex justify-center">
-            <CheckCircle2 className="w-16 h-16 text-green-500" />
+            {payoutFailed ? (
+              <AlertCircle className="w-16 h-16 text-amber-500" />
+            ) : (
+              <CheckCircle2 className="w-16 h-16 text-green-500" />
+            )}
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Payment received!</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+              {payoutFailed ? 'Payment received, payout pending' : 'Payment received!'}
+            </h2>
             <p className="text-slate-600 dark:text-slate-400 mt-2">{statusMessage}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
-              {estimatedReceive} {receiveToken} will be sent to your Celo wallet shortly.
-            </p>
+            {!payoutFailed && (
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
+                {estimatedReceive} {receiveToken} will be sent to your Celo wallet shortly.
+              </p>
+            )}
           </div>
           <button onClick={reset} className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition">
             Make another payment
