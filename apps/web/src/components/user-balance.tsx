@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { useAccount, useBalance } from "wagmi";
+import { useAccount, useBalance, useChainId } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const CUSD_ADDRESS = "0x765DE816845861e75A25fCA122bb6898B8B1282a"; // cUSD on Celo Mainnet
+const CUSD_MAINNET = "0x765DE816845861e75A25fCA122bb6898B8B1282a";
+const CUSD_ALFAJORES = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1";
 const USDC_ADDRESS = "0xcebA9300f2b948710d2653dD7B07f33A8B32118C";
 const USDT_ADDRESS = "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e";
 
@@ -40,6 +41,8 @@ function BalanceDisplay({ address, token, symbol, refetchTrigger }: { address: `
 
 export function UserBalance({ refetchTrigger }: { refetchTrigger?: number } = {}) {
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const cusdAddress = chainId === 44787 ? CUSD_ALFAJORES : CUSD_MAINNET;
 
   if (!isConnected || !address) {
     return null;
@@ -55,7 +58,7 @@ export function UserBalance({ refetchTrigger }: { refetchTrigger?: number } = {}
       <CardContent className="space-y-4">
         <div className="space-y-2 pt-2 border-t">
           <BalanceDisplay address={address} symbol="CELO" token={undefined} refetchTrigger={refetchTrigger} />
-          <BalanceDisplay address={address} token={CUSD_ADDRESS as `0x${string}`} symbol="cUSD" refetchTrigger={refetchTrigger} />
+          <BalanceDisplay address={address} token={cusdAddress as `0x${string}`} symbol="cUSD" refetchTrigger={refetchTrigger} />
           <BalanceDisplay address={address} token={USDT_ADDRESS} symbol="USDT" refetchTrigger={refetchTrigger} />
         </div>
       </CardContent>

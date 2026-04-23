@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useChainId } from 'wagmi';
 import { parseUnits, decodeEventLog } from 'viem';
 import { Loader2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { UserBalance } from './user-balance';
-import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ABI } from '@/lib/contracts';
+import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ADDRESS_ALFAJORES, ZIM_ESCROW_ABI } from '@/lib/contracts';
 
-const CUSD_ADDRESS = '0x765DE816845861e75A25fCA122bb6898B8B1282a' as const; // cUSD on Celo Mainnet
+const CUSD_MAINNET = '0x765DE816845861e75A25fCA122bb6898B8B1282a' as const;
+const CUSD_ALFAJORES = '0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1' as const;
 // ERC-20 approve ABI (minimal)
 const ERC20_ABI = [
   {
@@ -48,7 +49,11 @@ function formatSellError(error: unknown): string {
 
 export default function LiquidityGateway() {
   const { address: userAccount } = useAccount();
+  const chainId = useChainId();
   const [activeTab, setActiveTab] = useState<'buy' | 'sell'>('buy');
+
+  const activeCusdAddress = chainId === 44787 ? CUSD_ALFAJORES : CUSD_MAINNET;
+  const activeEscrowAddress = chainId === 44787 ? ZIM_ESCROW_ADDRESS_ALFAJORES : ZIM_ESCROW_ADDRESS;
 
   // ── Buy state ────────────────────────────────────────────────────────────
   const [amount, setAmount] = useState('');
@@ -69,7 +74,7 @@ export default function LiquidityGateway() {
   const [sellMessage, setSellMessage] = useState('');
   const [sellId, setSellId] = useState('');
 
-  const { data: cusdBalance, refetch: refetchCusd } = useBalance({ address: userAccount, token: CUSD_ADDRESS, query: { refetchInterval: 10_000 } });
+  const { data: cusdBalance, refetch: refetchCusd } = useBalance({ address: userAccount, token: activeCusdAddress, query: { refetchInterval: 10_000 } });
   const { data: celoBalance } = useBalance({ address: userAccount, query: { refetchInterval: 10_000 } });
 
   // Refetch when user returns to tab after USSD/Paynow payment
@@ -235,22 +240,22 @@ export default function LiquidityGateway() {
       setSellState('approving');
       setSellMessage('Step 1/2: Approve cUSD spend in your wallet…');
       const approveTxHash = await approveAsync({
-        address: CUSD_ADDRESS,
+        address: activeCusdAddress,
         abi: ERC20_ABI,
         functionName: 'approve',
-        args: [ZIM_ESCROW_ADDRESS, amountUnits],
-        feeCurrency: CUSD_ADDRESS,
+        args: [activeEscrowAddress, amountUnits],
+        feeCurrency: activeCusdAddress,
       } as any);
 
       // Step 2: Deposit into escrow (gas paid in cUSD — required by MiniPay)
       setSellState('depositing');
       setSellMessage('Step 2/2: Lock cUSD in escrow…');
       const depositTxHash = await depositAsync({
-        address: ZIM_ESCROW_ADDRESS,
+        address: activeEscrowAddress,
         abi: ZIM_ESCROW_ABI,
         functionName: 'depositEscrow',
-        args: [CUSD_ADDRESS, amountUnits, sellPhone],
-        feeCurrency: CUSD_ADDRESS,
+        args: [activeCusdAddress, amountUnits, sellPhone],
+        feeCurrency: activeCusdAddress,
       } as any);
 
       // Step 3: Extract escrow ID from transaction receipt

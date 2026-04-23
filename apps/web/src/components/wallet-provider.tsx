@@ -6,7 +6,7 @@ import { injectedWallet } from "@rainbow-me/rainbowkit/wallets";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { WagmiProvider, createConfig, http, useConnect } from "wagmi";
-import { celo } from "wagmi/chains";
+import { celo, celoAlfajores } from "wagmi/chains";
 import { ConnectButton } from "./connect-button";
 
 const connectors = connectorsForWallets(
@@ -23,10 +23,11 @@ const connectors = connectorsForWallets(
 );
 
 const wagmiConfig = createConfig({
-  chains: [celo],
+  chains: [celo, celoAlfajores],
   connectors,
   transports: {
     [celo.id]: http('https://forno.celo.org'),
+    [celoAlfajores.id]: http('https://alfajores-forno.celo-testnet.org'),
   },
   ssr: true,
 });
