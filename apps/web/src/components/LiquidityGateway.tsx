@@ -111,6 +111,8 @@ export default function LiquidityGateway() {
       to,
       data,
       value: '0x0',
+      // CIP-64 transaction type on Celo so feeCurrency is respected.
+      type: '0x7b',
       feeCurrency,
     };
 
