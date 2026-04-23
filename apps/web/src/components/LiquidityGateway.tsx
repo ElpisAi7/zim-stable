@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useChainId } from 'wagmi';
-import { parseUnits, decodeEventLog } from 'viem';
+import { parseUnits, decodeEventLog, encodeFunctionData } from 'viem';
 import { Loader2, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { UserBalance } from './user-balance';
 import { ZIM_ESCROW_ADDRESS, ZIM_ESCROW_ADDRESS_ALFAJORES, ZIM_ESCROW_ABI } from '@/lib/contracts';
@@ -91,6 +91,36 @@ export default function LiquidityGateway() {
   const { writeContractAsync: approveAsync } = useWriteContract();
   const { writeContractAsync: depositAsync } = useWriteContract();
   const publicClient = usePublicClient();
+
+  const sendMiniPayTransaction = async ({
+    to,
+    data,
+    feeCurrency,
+  }: {
+    to: `0x${string}`;
+    data: `0x${string}`;
+    feeCurrency: `0x${string}`;
+  }): Promise<`0x${string}`> => {
+    const provider = (window as any)?.ethereum;
+    if (!provider?.request || !userAccount) {
+      throw new Error('MiniPay provider is not available');
+    }
+
+    const tx = {
+      from: userAccount,
+      to,
+      data,
+      value: '0x0',
+      feeCurrency,
+    };
+
+    const hash = await provider.request({
+      method: 'eth_sendTransaction',
+      params: [tx],
+    });
+
+    return hash as `0x${string}`;
+  };
 
   const [exchangeRate] = useState<ExchangeRate>({
     zwlToUsd: 0.015,
@@ -242,24 +272,46 @@ export default function LiquidityGateway() {
       // Step 1: Approve escrow to spend cUSD (gas paid in cUSD — required by MiniPay)
       setSellState('approving');
       setSellMessage('Step 1/2: Approve cUSD spend in your wallet…');
-      const approveTxHash = await approveAsync({
-        address: activeCusdAddress,
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [activeEscrowAddress, amountUnits],
-        feeCurrency: activeCusdAddress,
-      } as any);
+      const isMiniPay = Boolean((window as any)?.ethereum?.isMiniPay);
+
+      const approveTxHash = isMiniPay
+        ? await sendMiniPayTransaction({
+            to: activeCusdAddress,
+            data: encodeFunctionData({
+              abi: ERC20_ABI,
+              functionName: 'approve',
+              args: [activeEscrowAddress, amountUnits],
+            }),
+            feeCurrency: activeCusdAddress,
+          })
+        : await approveAsync({
+            address: activeCusdAddress,
+            abi: ERC20_ABI,
+            functionName: 'approve',
+            args: [activeEscrowAddress, amountUnits],
+            feeCurrency: activeCusdAddress,
+          } as any);
 
       // Step 2: Deposit into escrow (gas paid in cUSD — required by MiniPay)
       setSellState('depositing');
       setSellMessage('Step 2/2: Lock cUSD in escrow…');
-      const depositTxHash = await depositAsync({
-        address: activeEscrowAddress,
-        abi: ZIM_ESCROW_ABI,
-        functionName: 'depositEscrow',
-        args: [activeCusdAddress, amountUnits, sellPhone],
-        feeCurrency: activeCusdAddress,
-      } as any);
+      const depositTxHash = isMiniPay
+        ? await sendMiniPayTransaction({
+            to: activeEscrowAddress,
+            data: encodeFunctionData({
+              abi: ZIM_ESCROW_ABI,
+              functionName: 'depositEscrow',
+              args: [activeCusdAddress, amountUnits, sellPhone],
+            }),
+            feeCurrency: activeCusdAddress,
+          })
+        : await depositAsync({
+            address: activeEscrowAddress,
+            abi: ZIM_ESCROW_ABI,
+            functionName: 'depositEscrow',
+            args: [activeCusdAddress, amountUnits, sellPhone],
+            feeCurrency: activeCusdAddress,
+          } as any);
 
       // Step 3: Extract escrow ID from transaction receipt
       setSellState('recording');
